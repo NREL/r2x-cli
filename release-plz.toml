@@ -26,6 +26,3 @@ publish_allow_dirty = false
 # disable running `cargo-semver-checks`
 semver_check = false
 
-[workspace.metadata.dist]
-allow-dirty = ["ci"]
-
