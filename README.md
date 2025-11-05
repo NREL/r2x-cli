@@ -18,6 +18,24 @@ BSD-3-Clause License. See [LICENSE.txt](LICENSE.txt) for details.
 
 ## Commands
 
+### Getting Started
+
+```bash
+# Initialize a new pipeline file in the current directory
+r2x init
+
+# Initialize with custom filename
+r2x init my-pipeline.yaml
+```
+
+The `r2x init` command creates a template pipeline file with:
+- Example variables for substitution
+- Multiple pipeline examples
+- Plugin configuration templates
+- Comments explaining all features
+
+You can then edit the file to configure your own pipelines.
+
 ### Python & Virtual Environment Management
 
 ```bash

@@ -11,7 +11,7 @@ pub mod plugin_cache;
 pub mod plugin_manifest;
 mod plugins;
 pub mod python_bridge;
-use commands::{cache, config, python, read, run};
+use commands::{cache, config, init, python, read, run};
 use plugins::{
     clean_manifest, install_plugin, list_plugins, remove_plugin, show_install_help, GitOptions,
 };
@@ -103,6 +103,11 @@ enum Commands {
         /// Skip confirmation prompt
         #[arg(short = 'y', long)]
         yes: bool,
+    },
+    /// Initialize a new pipeline file
+    Init {
+        /// Optional filename for the pipeline (default: pipeline.yaml)
+        file: Option<String>,
     },
     /// Configure Python installation
     #[command(subcommand_required = true, arg_required_else_help = true)]
@@ -282,6 +287,9 @@ fn main() {
             if let Err(e) = clean_manifest(yes, &cli.global) {
                 logger::error(&e);
             }
+        }
+        Commands::Init { file } => {
+            init::handle_init(file, cli.global);
         }
         Commands::Python { action } => {
             python::handle_python(action, cli.global);
