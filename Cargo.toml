@@ -12,6 +12,12 @@ readme = "README.md"
 keywords = ["power-systems", "r2x", "cli", "plugin-manager", "uv"]
 categories = ["command-line-utilities", "development-tools"]
 
+[package.metadata.wix]
+upgrade-guid = "AB0643AB-0F2C-4FDC-ACFB-E7886B50614F"
+path-guid = "B2C9C3FE-FD0C-4209-910C-A07D1A71C539"
+license = false
+eula = false
+
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
 colored = "2.1"
@@ -32,3 +38,8 @@ indicatif = "0.17"
 assert_cmd = "2.0"
 predicates = "3.0"
 tempfile = "3.8"
+
+# The profile that 'dist' will build with
+[profile.dist]
+inherits = "release"
+lto = "thin"
