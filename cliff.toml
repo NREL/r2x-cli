@@ -45,7 +45,7 @@ body = """
 {% endif %}
 
 {%- macro remote_url() -%}
-  https://github.com/{{ remote.github.owner }}/{{ remote.github.repo }}
+  https://github.com/NREL/r2x-cli
 {%- endmacro -%}
 """
 # Remove leading and trailing whitespaces from the changelog's body.
