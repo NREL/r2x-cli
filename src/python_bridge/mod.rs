@@ -2,15 +2,12 @@
 //!
 //! This bridge provides a minimal, focused interface for:
 //! 1. Loading plugin package metadata via entry points
-//! 2. Building manifest entries from package schemas
-//! 3. Executing plugins with configuration
+//! 2. Executing plugins with configuration
 //!
-//! The Package JSON is the single source of truth for all plugin metadata.
-//! All plugin information flows through: Python Package → JSON → Manifest
+//! Plugin discovery uses AST-based analysis instead of runtime inspection,
+//! making it more efficient and reducing Python interpreter overhead.
 
 mod initialization;
-mod manifest_builder;
-mod package_loader;
 mod plugin_invoker;
 mod utils;
 

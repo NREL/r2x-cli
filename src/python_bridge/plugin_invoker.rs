@@ -39,7 +39,28 @@ impl super::Bridge {
         stdin_json: Option<&str>,
         plugin_metadata: Option<&Plugin>,
     ) -> Result<String, BridgeError> {
-        Python::with_gil(|py| {
+        // Check if this is an upgrader plugin - route to dedicated handler
+        if let Some(plugin) = plugin_metadata {
+            if plugin.upgrader.is_some() {
+                logger::debug("Routing to upgrader plugin handler");
+                return self.invoke_upgrader_plugin(target, config_json, plugin_metadata);
+            }
+        }
+
+        // Fall through to regular plugin invocation
+        self.invoke_plugin_regular(target, config_json, stdin_json, plugin_metadata)
+    }
+
+    /// Invoke a regular (non-upgrader) plugin with configuration
+    fn invoke_plugin_regular(
+        &self,
+        target: &str,
+        config_json: &str,
+        stdin_json: Option<&str>,
+        plugin_metadata: Option<&Plugin>,
+    ) -> Result<String, BridgeError> {
+        pyo3::Python::with_gil(|py| {
+>>>>>>> d0ba298 (feat: Implement ast-grep based parameter extraction for plugin discovery)
             // Parse target (module:callable or module:Class.method)
             logger::debug(&format!("Parsing target: {}", target));
             let parts: Vec<&str> = target.split(':').collect();
@@ -102,7 +123,16 @@ impl super::Bridge {
 
                 logger::debug(&format!("Instantiating class: {}", class_name));
                 let instance = class.call((), Some(&kwargs)).map_err(|e| {
-                    BridgeError::Python(format!("Failed to instantiate '{}': {}", class_name, e))
+                    let error_msg = format!("{}", e);
+                    let enhanced_msg = if error_msg.contains("missing") && error_msg.contains("required positional argument") {
+                        format!(
+                            "Failed to instantiate '{}': {}\n\nHint: This error may occur when plugin metadata is incomplete. Try running:\n  r2x sync\n\nThis will refresh the plugin metadata cache.",
+                            class_name, error_msg
+                        )
+                    } else {
+                        format!("Failed to instantiate '{}': {}", class_name, error_msg)
+                    };
+                    BridgeError::Python(enhanced_msg)
                 })?;
                 logger::debug("Class instantiated successfully");
 
@@ -418,6 +448,228 @@ impl super::Bridge {
                 "DataStore value must be a string path or dict with 'path' field".to_string(),
             ))
         }
+    }
+
+    /// Invoke an upgrader plugin with path-based data source
+    ///
+    /// Upgrader plugins are classes that execute ordered upgrade steps.
+    /// This instantiates the upgrader class and executes its steps:
+    /// - FILE steps: Modify files in-place, no output
+    /// - SYSTEM steps: Read JSON, transform it, chain outputs
+    ///
+    /// # Arguments
+    /// * `target` - Entry point in format "module.path:UpgraderClassName"
+    /// * `config_json` - Configuration as JSON string (must contain "path" key)
+    ///
+    /// # Returns
+    /// Final upgraded JSON string if SYSTEM steps were executed, empty string otherwise
+    fn invoke_upgrader_plugin(
+        &self,
+        target: &str,
+        config_json: &str,
+        plugin_metadata: Option<&Plugin>,
+    ) -> Result<String, BridgeError> {
+        pyo3::Python::with_gil(|py| {
+            // Parse config and extract path
+            let json_module = PyModule::import(py, "json")
+                .map_err(|e| BridgeError::Import("json".to_string(), format!("{}", e)))?;
+            let loads = json_module.getattr("loads")?;
+            let dumps = json_module.getattr("dumps")?;
+
+            let config_dict = loads
+                .call1((config_json,))?
+                .cast::<pyo3::types::PyDict>()
+                .map_err(|e| BridgeError::Python(format!("Config must be a JSON object: {}", e)))?
+                .clone();
+
+            let path_str = config_dict
+                .get_item("path")?
+                .ok_or_else(|| {
+                    BridgeError::Python("Upgrader plugin requires 'path' in config".to_string())
+                })?
+                .extract::<String>()
+                .map_err(|e| BridgeError::Python(format!("'path' must be a string: {}", e)))?;
+
+            logger::debug(&format!("Upgrader path: {}", path_str));
+
+            // Parse target to get module and class name
+            let parts: Vec<&str> = target.split(':').collect();
+            if parts.len() != 2 {
+                return Err(BridgeError::InvalidEntryPoint(target.to_string()));
+            }
+
+            // Resolve module path - handle relative imports
+            let module_path = if parts[0].starts_with('.') {
+                // Relative import: resolve using package name
+                let package_name = plugin_metadata
+                    .and_then(|p| p.package_name.as_ref())
+                    .ok_or_else(|| {
+                        BridgeError::Python(
+                            "Cannot resolve relative import without package name".to_string(),
+                        )
+                    })?;
+
+                // Replace hyphens with underscores in package name (e.g., r2x-sienna -> r2x_sienna)
+                let normalized_package = package_name.replace('-', "_");
+
+                // Concatenate: package + relative path (e.g., r2x_sienna + .upgrader = r2x_sienna.upgrader)
+                let resolved = format!("{}{}", normalized_package, parts[0]);
+                logger::debug(&format!(
+                    "Resolving relative import '{}' using package '{}' -> '{}'",
+                    parts[0], package_name, resolved
+                ));
+                resolved
+            } else {
+                logger::debug(&format!("Using absolute module path: '{}'", parts[0]));
+                parts[0].to_string()
+            };
+
+            logger::debug(&format!("Final module path for import: '{}'", module_path));
+
+            // Import upgrader module and get class
+            let module = PyModule::import(py, &module_path)
+                .map_err(|e| BridgeError::Import(module_path.to_string(), format!("{}", e)))?;
+            let upgrader_class = module.getattr(parts[1]).map_err(|e| {
+                BridgeError::Python(format!(
+                    "Failed to get upgrader class '{}': {}",
+                    parts[1], e
+                ))
+            })?;
+
+            // Instantiate upgrader and get steps
+            logger::debug("Instantiating upgrader class");
+            let upgrader_instance = upgrader_class.call1((&path_str,)).map_err(|e| {
+                BridgeError::Python(format!("Failed to instantiate upgrader: {}", e))
+            })?;
+
+            let list_steps_method = upgrader_instance.getattr("list_steps").map_err(|e| {
+                BridgeError::Python(format!("Failed to get list_steps method: {}", e))
+            })?;
+
+            let steps_py = list_steps_method
+                .call0()
+                .map_err(|e| BridgeError::Python(format!("Failed to call list_steps: {}", e)))?;
+
+            let steps_len = steps_py
+                .len()
+                .map_err(|e| BridgeError::Python(format!("Failed to get steps length: {}", e)))?;
+
+            logger::debug(&format!("Upgrader has {} steps", steps_len));
+
+            // Re-configure Python logging before executing steps to ensure handlers are active
+            let log_file = crate::logger::get_log_path_string();
+            let fmt = "[{time:YYYY-MM-DD HH:mm:ss}] [PYTHON] {level: <8} {message}";
+            let verbosity = crate::logger::get_verbosity();
+            let log_level = match verbosity {
+                0 => "WARNING",
+                1 => "INFO",
+                2 => "DEBUG",
+                _ => "TRACE",
+            };
+            let enable_console = crate::logger::get_log_python();
+            let logger_module = PyModule::import(py, "r2x_core.logger").map_err(|e| {
+                BridgeError::Import("r2x_core.logger".to_string(), format!("{}", e))
+            })?;
+            let setup_logging = logger_module
+                .getattr("setup_logging")
+                .map_err(|e| BridgeError::Python(format!("setup_logging not found: {}", e)))?;
+            let kwargs = pyo3::types::PyDict::new(py);
+            kwargs.set_item("level", log_level)?;
+            kwargs.set_item("log_file", &log_file)?;
+            kwargs.set_item("fmt", fmt)?;
+            kwargs.set_item("enable_console_log", enable_console)?;
+            setup_logging
+                .call((), Some(&kwargs))
+                .map_err(|e| BridgeError::Python(format!("setup_logging() failed: {}", e)))?;
+            logger::debug("Python logging re-configured for upgrade step execution");
+
+            // Execute steps
+            let mut executed_system_steps = false;
+            let mut current_system_data: Option<pyo3::Bound<PyAny>> = None;
+
+            // Import pathlib once for FILE steps
+            let pathlib = PyModule::import(py, "pathlib").ok();
+
+            for i in 0..steps_len {
+                let step = steps_py
+                    .get_item(i)
+                    .map_err(|e| BridgeError::Python(format!("Failed to get step {}: {}", i, e)))?;
+
+                let step_name = step.getattr("name")?.extract::<String>()?;
+                let upgrade_type = step
+                    .getattr("upgrade_type")?
+                    .getattr("value")?
+                    .extract::<String>()?;
+                let step_func = step.getattr("func")?;
+
+                logger::step(&format!(
+                    "Executing upgrade step '{}' (type: {})",
+                    step_name, upgrade_type
+                ));
+
+                if upgrade_type == "FILE" {
+                    // FILE step: modify files in place
+                    let pathlib_module = pathlib.as_ref().ok_or_else(|| {
+                        BridgeError::Import(
+                            "pathlib".to_string(),
+                            "pathlib module not available".to_string(),
+                        )
+                    })?;
+                    let path_obj = pathlib_module
+                        .getattr("Path")?
+                        .call1((&path_str,))
+                        .map_err(|e| {
+                            BridgeError::Python(format!("Failed to create Path: {}", e))
+                        })?;
+
+                    step_func.call1((path_obj,)).map_err(|e| {
+                        BridgeError::Python(format!("FILE step '{}' failed: {}", step_name, e))
+                    })?;
+                } else if upgrade_type == "SYSTEM" {
+                    // SYSTEM step: transform JSON data
+                    executed_system_steps = true;
+
+                    // Load JSON on first SYSTEM step
+                    if current_system_data.is_none() {
+                        let json_content = std::fs::read_to_string(&path_str).map_err(|e| {
+                            BridgeError::Python(format!(
+                                "Failed to read file '{}': {}",
+                                path_str, e
+                            ))
+                        })?;
+
+                        current_system_data = Some(loads.call1((json_content,)).map_err(|e| {
+                            BridgeError::Python(format!("Failed to parse JSON: {}", e))
+                        })?);
+                    }
+
+                    // Transform data through step
+                    let data = current_system_data.as_ref().unwrap();
+                    let result = step_func.call1((data,)).map_err(|e| {
+                        BridgeError::Python(format!("SYSTEM step '{}' failed: {}", step_name, e))
+                    })?;
+                    current_system_data = Some(result);
+                } else {
+                    logger::warn(&format!(
+                        "Unknown upgrade step type: '{}', skipping",
+                        upgrade_type
+                    ));
+                }
+            }
+
+            // Return JSON output if SYSTEM steps were executed
+            if executed_system_steps {
+                let final_data = current_system_data.ok_or_else(|| {
+                    BridgeError::Python("No SYSTEM step output available".to_string())
+                })?;
+                let json_str = dumps.call1((&final_data,))?.extract::<String>()?;
+                logger::debug("Upgrader execution completed successfully");
+                Ok(json_str)
+            } else {
+                logger::debug("No SYSTEM steps executed, returning empty output");
+                Ok(String::new())
+            }
+        })
     }
 }
 
