@@ -27,12 +27,11 @@ pub fn sync_manifest(_opts: &GlobalOpts) -> Result<(), String> {
     let total_start = std::time::Instant::now();
 
     // Get unique packages (avoid duplicates from multiple plugins in same package)
-    let mut packages_to_sync: Vec<(String, String)> = Vec::new();
+    let mut packages_to_sync: Vec<String> = Vec::new();
     for (_, plugin) in &manifest.plugins {
-        if let (Some(pkg_name), Some(pkg_version)) = (&plugin.package_name, &plugin.package_version)
-        {
-            if !packages_to_sync.iter().any(|(name, _)| name == pkg_name) {
-                packages_to_sync.push((pkg_name.clone(), pkg_version.clone()));
+        if let Some(pkg_name) = &plugin.package_name {
+            if !packages_to_sync.contains(pkg_name) {
+                packages_to_sync.push(pkg_name.clone());
             }
         }
     }
@@ -46,13 +45,13 @@ pub fn sync_manifest(_opts: &GlobalOpts) -> Result<(), String> {
     logger::step(&format!("Syncing {} package(s)...", num_packages));
 
     // Re-discover plugins for each package
-    for (package_name, package_version) in packages_to_sync {
+    for package_name in packages_to_sync {
         logger::spinner_start(&format!("Syncing: {}", package_name));
 
         let package_name_for_query = package_name.clone();
 
         // Get dependencies for this package
-        let (_, dependencies) =
+        let (package_version, dependencies) =
             match get_package_info(&uv_path, &python_path, &package_name_for_query) {
                 Ok((version, deps)) => (version, deps),
                 Err(e) => {
@@ -73,7 +72,7 @@ pub fn sync_manifest(_opts: &GlobalOpts) -> Result<(), String> {
                 package: package_name.to_string(),
                 package_name_full: package_name_for_query.to_string(),
                 dependencies,
-                package_version: Some(package_version.clone()),
+                package_version,
                 no_cache: false,
             },
         ) {

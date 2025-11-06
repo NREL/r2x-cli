@@ -4,10 +4,8 @@
 //! handling caching, dependencies, and manifest updates.
 
 use crate::logger;
-use crate::plugin_cache::{CachedPackage, CachedPlugin, PluginMetadataCache};
 use crate::plugin_manifest::PluginManifest;
 use crate::plugins::{find_package_path, parse_plugin_json, utils, AstDiscovery};
-use std::path::PathBuf;
 
 /// Options for plugin discovery and registration
 pub struct DiscoveryOptions {
@@ -28,6 +26,7 @@ pub fn discover_and_register_entry_points_with_deps(
     let package_name_full = &opts.package_name_full;
     let dependencies = &opts.dependencies;
     let no_cache = opts.no_cache;
+    let package_version = opts.package_version.as_deref().unwrap_or("unknown");
 
     // Get venv path from config for entry_points.txt lookup
     let venv_path = crate::config_manager::Config::load()
@@ -89,7 +88,6 @@ pub fn discover_and_register_entry_points_with_deps(
     for (key, mut plugin) in plugin_entries {
         plugin.install_type = Some("explicit".to_string());
         plugin.package_name = Some(package_name_full.to_string());
-        plugin.package_version = Some(package_version.to_string());
         let _ = manifest.add_plugin(key, plugin);
     }
 
@@ -102,13 +100,12 @@ pub fn discover_and_register_entry_points_with_deps(
             .collect();
 
         for dep in r2x_dependencies {
-            // Try manifest first with version "unknown" (for dependencies)
+            // Try manifest first for dependency plugins
             let existing_dep_plugins: Vec<String> = manifest
                 .plugins
                 .iter()
                 .filter(|(_, plugin)| {
                     plugin.package_name.as_deref() == Some(&dep)
-                        && plugin.package_version.as_deref() == Some("unknown")
                 })
                 .map(|(key, _)| key.clone())
                 .collect();
@@ -161,7 +158,6 @@ pub fn discover_and_register_entry_points_with_deps(
                     plugin.install_type = Some("dependency".to_string());
                     plugin.installed_by = Some(package_name_full.to_string());
                     plugin.package_name = Some(dep.clone());
-                    plugin.package_version = Some("unknown".to_string());
                     let _ = manifest.add_plugin(key, plugin);
                     total_plugins += 1;
                 }

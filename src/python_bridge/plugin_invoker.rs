@@ -60,7 +60,6 @@ impl super::Bridge {
         plugin_metadata: Option<&Plugin>,
     ) -> Result<String, BridgeError> {
         pyo3::Python::with_gil(|py| {
->>>>>>> d0ba298 (feat: Implement ast-grep based parameter extraction for plugin discovery)
             // Parse target (module:callable or module:Class.method)
             logger::debug(&format!("Parsing target: {}", target));
             let parts: Vec<&str> = target.split(':').collect();

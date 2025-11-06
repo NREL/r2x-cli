@@ -6,7 +6,7 @@
 use crate::errors::BridgeError;
 use crate::logger;
 use crate::plugins::ast_discovery::ImportMap;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::path::Path;
 
 /// Extract Package JSON by parsing plugins from the register_plugin() function

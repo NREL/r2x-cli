@@ -3,7 +3,6 @@
 //! Handles locating installed packages in virtual environments,
 //! including support for UV editable installs via .pth files.
 
-use crate::logger;
 use std::path::PathBuf;
 
 /// Find the path to an installed package

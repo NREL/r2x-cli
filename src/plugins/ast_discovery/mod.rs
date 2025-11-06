@@ -20,7 +20,6 @@ pub mod parameter_extractor;
 use crate::errors::BridgeError;
 use crate::logger;
 use import_resolver::ImportMap;
-use serde_json::json;
 use std::path::Path;
 
 /// AST-based plugin discovery orchestrator
@@ -92,6 +91,3 @@ impl AstDiscovery {
         Ok(package_json)
     }
 }
-
-// Re-export ImportMap for use by constructor_parser
-pub use import_resolver::ImportMap;
