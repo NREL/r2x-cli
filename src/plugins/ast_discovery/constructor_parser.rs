@@ -236,7 +236,7 @@ pub fn extract_kwargs(
 pub fn parse_kwarg_value(
     value: &str,
     import_map: &ImportMap,
-    package_path: &Path,
+    _package_path: &Path,
 ) -> Result<Value, BridgeError> {
     let trimmed = value.trim();
 

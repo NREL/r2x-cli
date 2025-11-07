@@ -250,16 +250,16 @@ impl Config {
             self.uv_path = None;
         }
 
-        match which("uv") {
-            Ok(path) => {
-                let path_str = path.to_string_lossy().trim().to_string();
-                self.uv_path = Some(path_str.clone());
-                self.save()?;
-                return Ok(path_str);
-            }
-            Err(_) => {
-                return Err("uv is not installed. Please install it from: https://docs.astral.sh/uv/getting-started/installation/".into())
-            }
+        if let Ok(path) = which("uv") {
+            let path_str = path.to_string_lossy().trim().to_string();
+            self.uv_path = Some(path_str.clone());
+            self.save()?;
+            return Ok(path_str);
+        }
+
+        #[cfg(target_os = "windows")]
+        {
+            return Err("uv is not installed. Please install it from: https://docs.astral.sh/uv/getting-started/installation/".into());
         }
 
         #[cfg(not(target_os = "windows"))]

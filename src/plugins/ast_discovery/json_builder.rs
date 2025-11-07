@@ -97,20 +97,3 @@ pub fn infer_plugin_type(constructor: &str) -> &'static str {
     }
 }
 
-/// Infer callable type from name heuristic
-///
-/// Determines whether a symbol name refers to a class or function based on naming conventions.
-/// This is a best-effort heuristic: classes start with uppercase letters, functions are lowercase.
-///
-/// # Arguments
-/// * `name` - The symbol name to analyze
-///
-/// # Returns
-/// "class" if name starts with uppercase, "function" otherwise
-pub fn infer_callable_type_from_name(name: &str) -> &'static str {
-    if name.chars().next().map_or(false, |c| c.is_uppercase()) {
-        "class"
-    } else {
-        "function"
-    }
-}

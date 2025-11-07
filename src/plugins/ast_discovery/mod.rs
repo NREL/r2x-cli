@@ -11,11 +11,9 @@
 
 pub mod ast_parser;
 pub mod constructor_parser;
-pub mod decorator_processor;
 pub mod file_finder;
 pub mod import_resolver;
 pub mod json_builder;
-pub mod parameter_extractor;
 
 use crate::errors::BridgeError;
 use crate::logger;
