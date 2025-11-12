@@ -9,7 +9,7 @@
 
 pub mod errors;
 mod initialization;
-mod plugin_invoker;
+pub mod plugin_invoker;
 mod utils;
 
 pub use errors::BridgeError;

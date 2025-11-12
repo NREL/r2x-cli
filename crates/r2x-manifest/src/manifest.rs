@@ -250,7 +250,6 @@ impl Manifest {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::DiscoveryPlugin;
 
     #[test]
     fn test_manifest_default() {

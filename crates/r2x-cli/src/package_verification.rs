@@ -205,14 +205,15 @@ pub fn ensure_packages(packages: Vec<String>, config: &Config) -> Result<(), Ver
         .as_ref()
         .ok_or_else(|| VerificationError::ReinstallFailed("uv not configured".to_string()))?;
 
-    let venv_path = config.get_venv_path();
+    let python_exe = config.get_venv_python_path();
 
     // Build uv pip install command
     let mut cmd = Command::new(uv_path);
     cmd.arg("pip")
         .arg("install")
         .arg("--python")
-        .arg(&venv_path);
+        .arg(&python_exe)
+        .arg("--prerelease=allow");
 
     // Add all packages
     for package in &packages {

@@ -37,6 +37,12 @@ impl Bridge {
 
         let python_path = configure_python_venv()?;
 
+        let mut config = Config::load()
+            .map_err(|e| BridgeError::Initialization(format!("Failed to load config: {}", e)))?;
+        let cache_path = config.ensure_cache_path().map_err(|e| {
+            BridgeError::Initialization(format!("Failed to ensure cache path: {}", e))
+        })?;
+
         logger::debug(&format!(
             "Initializing Python bridge with: {}",
             python_path.display()
@@ -62,11 +68,7 @@ impl Bridge {
         logger::debug("Enabled Python bytecode generation");
 
         // Add site-packages from venv to sys.path so imports work as expected
-        let venv_path = PathBuf::from(
-            Config::load()
-                .map_err(|e| BridgeError::Initialization(format!("Failed to load config: {}", e)))?
-                .get_venv_path(),
-        );
+        let venv_path = PathBuf::from(config.get_venv_path());
 
         let lib_dir = venv_path.join(PYTHON_LIB_DIR);
         logger::debug(&format!(
@@ -118,6 +120,8 @@ impl Bridge {
             "Python version detection took: {:?}",
             version_start.elapsed()
         ));
+
+        configure_python_cache(&cache_path)?;
 
         // r2x_core is now installed during venv creation, so no need to check here
 
@@ -248,6 +252,60 @@ fn detect_and_store_python_version() -> Result<(), BridgeError> {
         .map_err(|e| BridgeError::Initialization(format!("Failed to save config: {}", e)))?;
 
     logger::info(&format!("Python version {} stored in config", version_str));
+
+    Ok(())
+}
+
+fn configure_python_cache(cache_path: &str) -> Result<(), BridgeError> {
+    std::fs::create_dir_all(cache_path).map_err(|e| {
+        BridgeError::Initialization(format!("Failed to create cache directory: {}", e))
+    })?;
+    std::env::set_var("R2X_CACHE_PATH", cache_path);
+
+    let cache_path_escaped = cache_path.replace('\\', "\\\\");
+    pyo3::Python::attach(|py| {
+        let patch_code = format!(
+            r#"from pathlib import Path
+_R2X_CACHE_PATH = Path(r"{cache}")
+
+def _r2x_cache_path_override():
+    return _R2X_CACHE_PATH
+"#,
+            cache = cache_path_escaped
+        );
+
+        let code_cstr = std::ffi::CString::new(patch_code).map_err(|e| {
+            BridgeError::Python(format!("Failed to prepare cache override script: {}", e))
+        })?;
+        let filename = std::ffi::CString::new("r2x_cache_patch.py").unwrap();
+        let module_name = std::ffi::CString::new("r2x_cache_patch").unwrap();
+        let patch_module = PyModule::from_code(
+            py,
+            code_cstr.as_c_str(),
+            filename.as_c_str(),
+            module_name.as_c_str(),
+        )
+        .map_err(|e| BridgeError::Python(format!("Failed to build cache override: {}", e)))?;
+
+        let override_fn = patch_module
+            .getattr("_r2x_cache_path_override")
+            .map_err(|e| {
+                BridgeError::Python(format!("Failed to obtain cache override function: {}", e))
+            })?;
+
+        let file_ops = PyModule::import(py, "r2x_core.utils.file_operations").map_err(|e| {
+            BridgeError::Python(format!(
+                "Failed to import r2x_core.utils.file_operations: {}",
+                e
+            ))
+        })?;
+
+        file_ops
+            .setattr("get_r2x_cache_path", override_fn)
+            .map_err(|e| BridgeError::Python(format!("Failed to override cache path: {}", e)))?;
+
+        Ok::<(), BridgeError>(())
+    })?;
 
     Ok(())
 }

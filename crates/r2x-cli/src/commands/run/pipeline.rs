@@ -6,8 +6,11 @@ use crate::pipeline_config::PipelineConfig;
 use crate::python_bridge::Bridge;
 use crate::r2x_manifest::{self, Manifest};
 use colored::Colorize;
+use r2x_config::Config;
 use std::collections::HashSet;
-use std::time::{Duration, Instant};
+use std::fs;
+use std::path::PathBuf;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub(super) fn handle_pipeline_mode(
     yaml_path: String,
@@ -182,42 +185,50 @@ fn run_pipeline(
             }
         }
 
+        let normalized_io: Option<String> =
+            bindings.io_type.as_deref().map(normalize_io_type_value);
+        let pipeline_input = current_stdin.as_deref();
+        let uses_stdin = matches!(normalized_io.as_deref(), Some("stdin") | Some("both"));
+        let stdin_json = if uses_stdin { pipeline_input } else { None };
+
+        let pipeline_overrides =
+            prepare_pipeline_overrides(pipeline_input, &bindings, plugin_name)?;
+
         let final_config_json = build_plugin_config(
             &bindings,
             &pkg.name,
             &yaml_config,
             resolved_output_folder.as_deref(),
             current_store_path.as_deref(),
+            pipeline_overrides.as_deref(),
         )?;
-
-        let uses_stdin = matches!(bindings.io_type.as_deref(), Some("stdin") | Some("both"));
-        let stdin_json = if uses_stdin {
-            current_stdin.as_deref()
-        } else {
-            None
-        };
 
         let target = super::build_call_target(&bindings)?;
         let bridge = Bridge::get()?;
         logger::debug(&format!("Invoking: {}", target));
         logger::debug(&format!("Config: {}", final_config_json));
 
-        let result = match bridge.invoke_plugin(
+        let invocation_result = match bridge.invoke_plugin(
             &target,
             &final_config_json,
             stdin_json,
             Some(disc_plugin),
         ) {
-            Ok(result) => {
+            Ok(inv_result) => {
                 let elapsed = step_start.elapsed();
                 logger::spinner_success(&format!(
                     "{} [{}/{}] ({})",
                     plugin_name,
                     step_num,
                     total_steps,
-                    format_duration(elapsed)
+                    super::format_duration(elapsed)
                 ));
-                result
+                if logger::get_verbosity() > 0 {
+                    if let Some(timings) = &inv_result.timings {
+                        super::print_plugin_timing_breakdown(timings);
+                    }
+                }
+                inv_result
             }
             Err(e) => {
                 let elapsed = step_start.elapsed();
@@ -226,13 +237,15 @@ fn run_pipeline(
                     plugin_name,
                     step_num,
                     total_steps,
-                    format_duration(elapsed)
+                    super::format_duration(elapsed)
                 ));
                 return Err(RunError::Bridge(e));
             }
         };
 
-        let produces_stdout = matches!(bindings.io_type.as_deref(), Some("stdout") | Some("both"));
+        let result = invocation_result.output;
+
+        let produces_stdout = matches!(normalized_io.as_deref(), Some("stdout") | Some("both"));
         if produces_stdout && !result.is_empty() && result != "null" {
             logger::debug(&format!("Plugin produced output ({} bytes)", result.len()));
             current_stdin = Some(result);
@@ -243,9 +256,12 @@ fn run_pipeline(
 
     eprintln!(
         "{}",
-        format!("Finished in: {}", format_duration(pipeline_start.elapsed()))
-            .green()
-            .bold()
+        format!(
+            "Finished in: {}",
+            super::format_duration(pipeline_start.elapsed())
+        )
+        .green()
+        .bold()
     );
 
     if let Some(final_output) = current_stdin {
@@ -262,13 +278,130 @@ fn run_pipeline(
     Ok(())
 }
 
-fn format_duration(duration: Duration) -> String {
-    let total_ms = duration.as_millis();
-    if total_ms < 1000 {
-        format!("{}ms", total_ms)
-    } else {
-        format!("{:.2}s", duration.as_secs_f64())
+fn normalize_io_type_value(raw: &str) -> String {
+    let trimmed = raw.trim();
+    let without_prefix = trimmed
+        .strip_prefix("IOType.")
+        .or_else(|| trimmed.strip_prefix("IOType::"))
+        .unwrap_or(trimmed);
+    without_prefix.to_ascii_lowercase()
+}
+
+fn prepare_pipeline_overrides(
+    pipeline_input: Option<&str>,
+    bindings: &r2x_manifest::runtime::RuntimeBindings,
+    plugin_name: &str,
+) -> Result<Option<String>, RunError> {
+    let Some(raw) = pipeline_input else {
+        return Ok(None);
+    };
+
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
     }
+
+    let Some(target_field) = determine_json_path_field(bindings, plugin_name) else {
+        return Ok(Some(raw.to_string()));
+    };
+
+    let parsed = match serde_json::from_str::<serde_json::Value>(raw) {
+        Ok(value) => value,
+        Err(_) => return Ok(Some(raw.to_string())),
+    };
+
+    match parsed {
+        serde_json::Value::Object(map) => {
+            if map.contains_key(target_field) || !looks_like_system_payload(&map) {
+                Ok(Some(raw.to_string()))
+            } else {
+                let persisted = persist_pipeline_system_json(raw)?;
+                logger::debug(&format!(
+                    "Persisted upstream stdout for '{}' to {}",
+                    plugin_name, persisted
+                ));
+                let mut override_map = serde_json::Map::new();
+                override_map.insert(
+                    target_field.to_string(),
+                    serde_json::Value::String(persisted),
+                );
+                Ok(Some(serde_json::Value::Object(override_map).to_string()))
+            }
+        }
+        _ => Ok(Some(raw.to_string())),
+    }
+}
+
+fn determine_json_path_field(
+    bindings: &r2x_manifest::runtime::RuntimeBindings,
+    plugin_name: &str,
+) -> Option<&'static str> {
+    if let Some(config) = &bindings.config {
+        if config.parameters.contains_key("json_path") {
+            return Some("json_path");
+        }
+        if config.parameters.contains_key("path") {
+            return Some("path");
+        }
+    }
+
+    if bindings.callable.parameters.contains_key("json_path") {
+        return Some("json_path");
+    }
+    if bindings.callable.parameters.contains_key("path") {
+        return Some("path");
+    }
+
+    if plugin_name.contains("parser") {
+        return Some("json_path");
+    }
+
+    None
+}
+
+fn looks_like_system_payload(map: &serde_json::Map<String, serde_json::Value>) -> bool {
+    if map.contains_key("components") || map.contains_key("system") {
+        return true;
+    }
+    if let Some(data_obj) = map.get("data").and_then(|v| v.as_object()) {
+        return data_obj.contains_key("components")
+            || data_obj.contains_key("system_information")
+            || data_obj.contains_key("system");
+    }
+    false
+}
+
+fn persist_pipeline_system_json(payload: &str) -> Result<String, RunError> {
+    let mut config = Config::load().map_err(|e| RunError::Config(e.to_string()))?;
+    let cache_root = config
+        .ensure_cache_path()
+        .map_err(|e| RunError::Config(e.to_string()))?;
+    let dir = PathBuf::from(cache_root).join("pipeline-systems");
+    fs::create_dir_all(&dir)
+        .map_err(PipelineError::Io)
+        .map_err(RunError::Pipeline)?;
+
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| RunError::Config(format!("System clock error: {}", e)))?
+        .as_millis();
+    let filename = format!(
+        "system_{}_{}_{}.json",
+        timestamp,
+        std::process::id(),
+        rand_suffix()
+    );
+    let path = dir.join(filename);
+    fs::write(&path, payload)
+        .map_err(PipelineError::Io)
+        .map_err(RunError::Pipeline)?;
+    Ok(path.to_string_lossy().to_string())
+}
+
+fn rand_suffix() -> u32 {
+    use std::sync::atomic::{AtomicU32, Ordering};
+    static COUNTER: AtomicU32 = AtomicU32::new(0);
+    COUNTER.fetch_add(1, Ordering::Relaxed)
 }
 
 fn build_plugin_config(
@@ -277,9 +410,16 @@ fn build_plugin_config(
     yaml_config_json: &str,
     output_folder: Option<&str>,
     inherited_store_path: Option<&str>,
+    stdin_overrides: Option<&str>,
 ) -> Result<String, RunError> {
-    let yaml_config: serde_json::Value = serde_json::from_str(yaml_config_json)
+    let mut yaml_config: serde_json::Value = serde_json::from_str(yaml_config_json)
         .map_err(|e| RunError::Config(format!("Failed to parse YAML config: {}", e)))?;
+
+    if let Some(overrides) = stdin_overrides {
+        if let Ok(value) = serde_json::from_str::<serde_json::Value>(overrides) {
+            merge_config_values(&mut yaml_config, value);
+        }
+    }
 
     let mut final_config = serde_json::Map::new();
     let obj = &bindings.callable;
@@ -330,7 +470,10 @@ fn build_plugin_config(
             }
         }
 
-        if obj.parameters.contains_key("data_store") {
+        let needs_store =
+            bindings.requires_store.unwrap_or(false) || obj.parameters.contains_key("data_store");
+
+        if needs_store {
             let store_value = if let serde_json::Value::Object(ref yaml_map) = yaml_config {
                 match yaml_map.get("store") {
                     Some(value) => value.clone(),
@@ -360,6 +503,24 @@ fn build_plugin_config(
 
     serde_json::to_string(&serde_json::Value::Object(final_config))
         .map_err(|e| RunError::Config(format!("Failed to serialize final config: {}", e)))
+}
+
+fn merge_config_values(target: &mut serde_json::Value, overrides: serde_json::Value) {
+    match (target, overrides) {
+        (serde_json::Value::Object(target_map), serde_json::Value::Object(override_map)) => {
+            for (key, value) in override_map {
+                match target_map.get_mut(&key) {
+                    Some(existing) => merge_config_values(existing, value),
+                    None => {
+                        target_map.insert(key, value);
+                    }
+                }
+            }
+        }
+        (target_value, override_value) => {
+            *target_value = override_value;
+        }
+    }
 }
 
 fn fallback_store_value(

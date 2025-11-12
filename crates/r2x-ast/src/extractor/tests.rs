@@ -100,9 +100,9 @@ fn test_resolve_references_across_files() -> Result<()> {
     let upgrader_py = package_root.join("upgrader.py");
 
     let plugins_content = r#"
-from .upgrader import ReEDSUpgrader
-
 def register_plugin():
+    from .upgrader import ReEDSUpgrader
+
     return Package(
         name="r2x-reeds",
         plugins=[

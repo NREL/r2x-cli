@@ -5,6 +5,7 @@ use crate::package_verification;
 use crate::python_bridge::Bridge;
 use crate::r2x_manifest::Manifest;
 use colored::Colorize;
+use r2x_python::plugin_invoker::PluginInvocationResult;
 use std::collections::BTreeMap;
 use std::time::Instant;
 
@@ -48,7 +49,13 @@ fn list_available_plugins() -> Result<(), RunError> {
         }
     }
 
+    let mut first = true;
     for (package_name, types) in &packages {
+        if !first {
+            println!();
+        }
+        first = false;
+
         println!("{}:", package_name.bold());
         for (type_name, plugin_names) in types {
             println!("  {}:", type_name);
@@ -56,7 +63,6 @@ fn list_available_plugins() -> Result<(), RunError> {
                 println!("    - {}", plugin_name);
             }
         }
-        println!();
     }
 
     println!("Run a plugin with:\n  r2x run plugin <plugin-name> [args...]\n");
@@ -97,15 +103,28 @@ fn run_plugin(plugin_name: &str, args: &[String]) -> Result<(), RunError> {
     logger::debug(&format!("Config: {}", config_json));
 
     let start = Instant::now();
-    let result = bridge.invoke_plugin(&target, &config_json, None, Some(disc_plugin))?;
+    let invocation_result = bridge.invoke_plugin(&target, &config_json, None, Some(disc_plugin))?;
+    let PluginInvocationResult {
+        output: result,
+        timings,
+    } = invocation_result;
     let elapsed = start.elapsed();
-    let duration_msg = format!("({})", format_duration(elapsed).dimmed());
+    let duration_msg = format!("({})", super::format_duration(elapsed).dimmed());
 
     if !result.is_empty() && result != "null" {
         println!("{}", result);
     }
 
-    logger::success(&format!("{} completed {}", plugin_name, duration_msg));
+    if logger::get_verbosity() > 0 {
+        logger::success(&format!(
+            "{} execution completed {}",
+            plugin_name, duration_msg
+        ));
+
+        if let Some(timings) = timings {
+            super::print_plugin_timing_breakdown(&timings);
+        }
+    }
 
     Ok(())
 }
@@ -151,13 +170,4 @@ fn parse_json_value(value_str: &str) -> Result<serde_json::Value, RunError> {
     }
 
     Ok(serde_json::json!(value_str))
-}
-
-fn format_duration(duration: std::time::Duration) -> String {
-    let total_ms = duration.as_millis();
-    if total_ms < 1000 {
-        format!("{}ms", total_ms)
-    } else {
-        format!("{:.2}s", duration.as_secs_f64())
-    }
 }

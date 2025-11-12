@@ -2,9 +2,19 @@
 
 use assert_cmd::{cargo::cargo_bin_cmd, Command};
 use predicates::prelude::*;
+use std::path::PathBuf;
+
+fn fixture_config_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("tests")
+        .join("fixtures")
+        .join("r2x.toml")
+}
 
 fn r2x_cmd() -> Command {
-    cargo_bin_cmd!("r2x")
+    let mut cmd = cargo_bin_cmd!("r2x");
+    cmd.env("R2X_CONFIG", fixture_config_path());
+    cmd
 }
 
 #[test]

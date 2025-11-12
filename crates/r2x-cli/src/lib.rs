@@ -8,7 +8,6 @@ pub mod errors;
 pub mod help;
 pub mod package_verification;
 pub mod pipeline_config;
-pub mod plugin_cache;
 pub mod plugin_manifest;
 pub mod plugins;
 

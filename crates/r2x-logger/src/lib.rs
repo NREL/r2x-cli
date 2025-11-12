@@ -224,7 +224,7 @@ pub fn spinner_success(message: &str) {
         }
     }
     // Show success message with checkmark
-    eprintln!("  {} {}", "✔".green().bold(), message);
+    eprintln!("{} {}", "✔".green().bold(), message);
 }
 
 /// Stop the spinner with an error message

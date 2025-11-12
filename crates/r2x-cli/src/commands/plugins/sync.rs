@@ -79,9 +79,7 @@ pub fn sync_manifest(_opts: &GlobalOpts) -> Result<(), String> {
     let elapsed_ms = total_start.elapsed().as_millis();
     println!(
         "{}",
-        format!("Synced {} package(s) in {}ms", num_packages, elapsed_ms)
-            .bold()
-            .green()
+        format!("Synced {} package(s) in {}ms", num_packages, elapsed_ms).dimmed()
     );
 
     Ok(())

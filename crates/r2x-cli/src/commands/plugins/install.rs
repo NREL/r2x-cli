@@ -175,6 +175,7 @@ fn run_pip_install(
         "install".to_string(),
         "--python".to_string(),
         python_path.to_string(),
+        "--prerelease=allow".to_string(),
     ];
 
     if no_cache {

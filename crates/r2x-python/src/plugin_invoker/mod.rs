@@ -7,10 +7,25 @@ use r2x_manifest::{
     runtime::{build_runtime_bindings, RuntimeBindings},
     DiscoveryPlugin,
 };
+use std::time::Duration;
 
 mod kwargs;
 mod regular;
 mod upgrader;
+
+/// Timings for a plugin invocation phase
+pub struct PluginInvocationTimings {
+    pub python_invocation: Duration,
+    pub serialization: Duration,
+}
+
+/// Result of running a plugin through the Python bridge
+pub struct PluginInvocationResult {
+    /// JSON text emitted by the plugin (may be `"null"`)
+    pub output: String,
+    /// Optional per-phase timings for diagnostics
+    pub timings: Option<PluginInvocationTimings>,
+}
 
 impl super::Bridge {
     pub fn invoke_plugin(
@@ -19,7 +34,7 @@ impl super::Bridge {
         config_json: &str,
         stdin_json: Option<&str>,
         plugin_metadata: Option<&DiscoveryPlugin>,
-    ) -> Result<String, BridgeError> {
+    ) -> Result<PluginInvocationResult, BridgeError> {
         let runtime_bindings = match plugin_metadata {
             Some(meta) => Some(
                 build_runtime_bindings(meta)
@@ -46,8 +61,6 @@ impl super::Bridge {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_plugin_invocation_placeholder() {
         assert!(true);

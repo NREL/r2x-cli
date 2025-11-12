@@ -1,5 +1,6 @@
 use crate::config_manager::Config;
 use crate::logger;
+use crate::python_bridge::configure_python_venv;
 use crate::GlobalOpts;
 use clap::Subcommand;
 use colored::*;
@@ -56,7 +57,7 @@ pub fn handle_venv(action: Option<VenvAction>, skip_confirmation: bool, opts: Gl
         }
     } else {
         // No subcommand: create/recreate venv
-        handle_venv_create(skip_confirmation, opts);
+        handle_venv_create(skip_confirmation);
     }
 }
 
@@ -65,91 +66,48 @@ fn handle_python_install(version: Option<String>, _opts: GlobalOpts) {
     logger::debug("Handling Python install command");
     match Config::load() {
         Ok(mut config) => {
-            if let Err(e) = config.ensure_uv_path() {
-                logger::error(&format!("Failed to setup uv: {}", e));
+            let version_str = version
+                .or_else(|| config.python_version.clone())
+                .unwrap_or_else(|| "3.12".to_string());
+
+            config.python_version = Some(version_str.clone());
+            if let Err(e) = config.save() {
+                logger::error(&format!("Failed to save config: {}", e));
                 return;
             }
 
-            let uv_path = match config.uv_path {
-                Some(ref path) => path.clone(),
-                None => {
-                    logger::error("uv path not found");
-                    return;
-                }
-            };
-
-            let version_str = version.unwrap_or_else(|| {
-                config
-                    .python_version
-                    .clone()
-                    .unwrap_or_else(|| "3.12".to_string())
-            });
-
-            config.python_version = Some(version_str.clone());
-
-            let venv_path = PathBuf::from(config.get_venv_path());
-
+            let venv_path = config.get_venv_path();
             logger::step(&format!(
                 "Installing Python {} and creating venv...",
                 version_str
             ));
-            logger::debug(&format!("Using uv path: {}", uv_path));
-            logger::debug(&format!("Venv path: {}", venv_path.display()));
+            if let Err(e) = remove_existing_venv(&venv_path) {
+                logger::error(&e);
+                return;
+            }
 
-            let venv_output = Command::new(&uv_path)
-                .args([
-                    "venv",
-                    "--clear",
-                    "--python",
-                    &version_str,
-                    venv_path.to_str().unwrap(),
-                ])
-                .output();
-
-            match venv_output {
-                Ok(output) if output.status.success() => {
-                    logger::capture_output(&format!("uv venv --python {}", version_str), &output);
-                    config.venv_path = Some(venv_path.to_str().unwrap().to_string());
-
-                    if let Err(e) = config.save() {
-                        logger::error(&format!("Failed to save config: {}", e));
-                        return;
-                    }
-
+            match configure_python_venv() {
+                Ok(python_path) => {
                     logger::info(&format!(
                         "Configuration saved with Python version {}",
                         version_str
                     ));
-
-                    let python_check = Command::new(&uv_path)
-                        .args(["run", "--python", &version_str, "python", "--version"])
-                        .output();
-
-                    match python_check {
-                        Ok(output) if output.status.success() => {
-                            logger::capture_output(
-                                &format!("uv run --python {} python --version", version_str),
-                                &output,
-                            );
-                            logger::success(&format!(
-                                "Python {} installed and venv created successfully",
-                                version_str
-                            ));
-                        }
-                        _ => {
-                            logger::warn("Failed to verify Python installation");
-                        }
+                    if let Some(actual_version) = verify_python_version(&python_path) {
+                        logger::success(&format!(
+                            "Python {} installed (reported {}). Venv ready at {}",
+                            version_str,
+                            actual_version,
+                            PathBuf::from(&venv_path).display()
+                        ));
+                    } else {
+                        logger::success(&format!(
+                            "Python {} installed and venv created at {}",
+                            version_str, venv_path
+                        ));
                     }
                 }
-                Ok(output) => {
-                    logger::capture_output(&format!("uv venv --python {}", version_str), &output);
-                    logger::error(&format!(
-                        "Failed to create virtual environment for Python {}",
-                        version_str
-                    ));
-                }
                 Err(e) => {
-                    logger::error(&format!("Failed to execute uv command: {}", e));
+                    logger::error(&format!("Failed to configure Python environment: {}", e));
                 }
             }
         }
@@ -164,15 +122,7 @@ fn handle_python_path(_opts: GlobalOpts) {
     logger::debug("Handling python path command");
     match Config::load() {
         Ok(config) => {
-            let venv_path = config.get_venv_path();
-
-            #[cfg(unix)]
-            let python_path = format!("{}/bin/python", venv_path);
-
-            #[cfg(windows)]
-            let python_path = format!("{}\\Scripts\\python.exe", venv_path);
-
-            println!("{}", python_path);
+            println!("{}", config.get_venv_python_path());
         }
         Err(e) => {
             logger::error(&format!("Failed to load config: {}", e));
@@ -180,19 +130,13 @@ fn handle_python_path(_opts: GlobalOpts) {
     }
 }
 
-fn handle_venv_create(skip_confirmation: bool, opts: GlobalOpts) {
+fn handle_venv_create(skip_confirmation: bool) {
     logger::debug(&format!(
         "Handling venv create command (skip_confirmation: {})",
         skip_confirmation
     ));
     match Config::load() {
-        Ok(mut config) => {
-            // Ensure uv is installed first
-            if let Err(e) = config.ensure_uv_path() {
-                logger::error(&format!("Failed to setup uv: {}", e));
-                return;
-            }
-
+        Ok(config) => {
             let venv_path = config.get_venv_path();
             let venv_dir = PathBuf::from(&venv_path);
 
@@ -226,14 +170,22 @@ fn handle_venv_create(skip_confirmation: bool, opts: GlobalOpts) {
                     logger::debug("Skipping confirmation (--yes flag or R2X_VENV_YES set)");
                 }
 
-                if let Err(e) = fs::remove_dir_all(&venv_dir) {
-                    logger::error(&format!("Failed to remove existing venv: {}", e));
+                if let Err(e) = remove_existing_venv(&venv_path) {
+                    logger::error(&e);
                     return;
                 }
-                logger::debug(&format!("Removed existing venv at {}", venv_path));
             }
 
-            create_venv(&config, opts);
+            match configure_python_venv() {
+                Ok(python_path) => {
+                    logger::success(&format!(
+                        "Virtual environment ready at {} (python {})",
+                        venv_path,
+                        python_path.display()
+                    ));
+                }
+                Err(e) => logger::error(&format!("Failed to configure venv: {}", e)),
+            }
 
             if !skip_confirmation && std::env::var("R2X_VENV_YES").is_err() {
                 println!(
@@ -247,43 +199,6 @@ fn handle_venv_create(skip_confirmation: bool, opts: GlobalOpts) {
         Err(e) => {
             logger::error(&format!("Failed to load config: {}", e));
         }
-    }
-}
-
-// Create virtual environment using UV and specified python version
-fn create_venv(config: &Config, _opts: GlobalOpts) {
-    let venv_path = config.get_venv_path();
-    let version = config.python_version.as_deref().unwrap_or("3.12");
-
-    if let Some(ref uv_path) = config.uv_path {
-        logger::debug(&format!("Creating virtual environment at: {}", venv_path));
-        logger::debug(&format!(
-            "Running {} venv {} --python {}",
-            uv_path, venv_path, version
-        ));
-
-        let output = Command::new(uv_path)
-            .args(["venv", &venv_path, "--python", version])
-            .output();
-
-        match output {
-            Ok(out) if out.status.success() => {
-                logger::capture_output("uv venv", &out);
-                logger::success(&format!(
-                    "Virtual environment created successfully at {}",
-                    venv_path
-                ));
-            }
-            Ok(out) => {
-                logger::capture_output("uv venv", &out);
-                logger::error("Failed to create virtual environment");
-            }
-            Err(e) => {
-                logger::error(&format!("Failed to execute uv command: {}", e));
-            }
-        }
-    } else {
-        logger::error("uv path not configured");
     }
 }
 
@@ -358,6 +273,34 @@ fn is_valid_venv(path: &Path) -> bool {
     bin_dir.exists() && bin_dir.is_dir()
 }
 
+fn remove_existing_venv(venv_path: &str) -> Result<(), String> {
+    let venv_dir = PathBuf::from(venv_path);
+    if venv_dir.exists() {
+        logger::debug(&format!("Removing existing venv at {}", venv_path));
+        fs::remove_dir_all(&venv_dir)
+            .map_err(|e| format!("Failed to remove existing venv: {}", e))?;
+    }
+    Ok(())
+}
+
+fn verify_python_version(python_path: &Path) -> Option<String> {
+    if !python_path.exists() {
+        return None;
+    }
+
+    match Command::new(python_path).args(["--version"]).output() {
+        Ok(output) if output.status.success() => {
+            let raw = if output.stdout.is_empty() {
+                output.stderr
+            } else {
+                output.stdout
+            };
+            Some(String::from_utf8_lossy(&raw).trim().to_string())
+        }
+        _ => None,
+    }
+}
+
 fn handle_python_show(_opts: GlobalOpts) {
     logger::debug("Handling python show command");
     match Config::load() {
@@ -365,41 +308,26 @@ fn handle_python_show(_opts: GlobalOpts) {
             let version = config.python_version.as_deref().unwrap_or("not configured");
 
             let venv_path = config.get_venv_path();
-            let venv_exists = PathBuf::from(&venv_path).exists();
+            let python_path = PathBuf::from(config.get_venv_python_path());
+            let venv_exists = python_path.exists();
 
-            // Try to get the actual Python version from the venv if it exists
             let mut actual_version_str = String::new();
             let mut version_mismatch = false;
             if venv_exists {
-                let python_path = if cfg!(windows) {
-                    PathBuf::from(&venv_path).join("Scripts").join("python.exe")
-                } else {
-                    PathBuf::from(&venv_path).join("bin").join("python")
-                };
+                if let Some(actual_version) = verify_python_version(&python_path) {
+                    actual_version_str = actual_version.clone();
 
-                if python_path.exists() {
-                    match Command::new(&python_path).args(["--version"]).output() {
-                        Ok(output) if output.status.success() => {
-                            let actual_version =
-                                String::from_utf8_lossy(&output.stdout).trim().to_string();
-                            actual_version_str = actual_version.clone();
-
-                            // Check for version mismatch
-                            // Extract version number from "Python X.Y.Z" format
-                            if let Some(version_num) = actual_version.split_whitespace().nth(1) {
-                                let configured_short =
-                                    version.split('.').take(2).collect::<Vec<_>>().join(".");
-                                let actual_short =
-                                    version_num.split('.').take(2).collect::<Vec<_>>().join(".");
-                                if configured_short != actual_short && version != "not configured" {
-                                    version_mismatch = true;
-                                }
-                            }
-                        }
-                        _ => {
-                            logger::debug("Could not determine actual Python version");
+                    if let Some(version_num) = actual_version.split_whitespace().nth(1) {
+                        let configured_short =
+                            version.split('.').take(2).collect::<Vec<_>>().join(".");
+                        let actual_short =
+                            version_num.split('.').take(2).collect::<Vec<_>>().join(".");
+                        if configured_short != actual_short && version != "not configured" {
+                            version_mismatch = true;
                         }
                     }
+                } else {
+                    logger::debug("Could not determine actual Python version");
                 }
             }
 

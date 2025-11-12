@@ -84,9 +84,9 @@ impl PackageDiscoverer {
             .ok_or_else(|| anyhow!("Cannot extract package name from: {}", dist_info_name))?
             .replace('_', "-");
 
-        // Only process r2x-* packages
-        if !package_name.starts_with("r2x-") {
-            return Err(anyhow!("Package is not r2x-*: {}", package_name));
+        // Only process r2x-* packages except the shared runtime
+        if !package_name.starts_with("r2x-") || package_name == "r2x-core" {
+            return Err(anyhow!("Package is not an r2x plugin: {}", package_name));
         }
 
         debug!("Processing dist-info for: {}", package_name);

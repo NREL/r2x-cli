@@ -136,15 +136,6 @@ impl PluginExtractor {
         content.contains(&format!("def {}", function_name))
     }
 
-    #[cfg(test)]
-    pub(super) fn debug_find_init_signature_for_tests(
-        &self,
-        content: &str,
-        class_name: &str,
-    ) -> Option<String> {
-        self.find_init_signature(content, class_name)
-    }
-
     fn parse_parameters_to_entries(&self, func_text: &str) -> Vec<ParameterEntry> {
         let mut parameters = Vec::new();
 

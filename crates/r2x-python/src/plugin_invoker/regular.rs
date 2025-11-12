@@ -1,6 +1,9 @@
-use super::*;
+use super::{
+    logger, BridgeError, PluginInvocationResult, PluginInvocationTimings, RuntimeBindings,
+};
 use crate::Bridge;
-use pyo3::types::{PyDict, PyModule};
+use pyo3::types::{PyAny, PyAnyMethods, PyDict, PyModule};
+use pyo3::PyResult;
 use std::time::{Duration, Instant};
 
 impl Bridge {
@@ -10,7 +13,7 @@ impl Bridge {
         config_json: &str,
         stdin_json: Option<&str>,
         runtime_bindings: Option<&RuntimeBindings>,
-    ) -> Result<String, BridgeError> {
+    ) -> Result<PluginInvocationResult, BridgeError> {
         pyo3::Python::attach(|py| {
             logger::debug(&format!("Parsing target: {}", target));
             let parts: Vec<&str> = target.split(':').collect();
@@ -68,7 +71,7 @@ impl Bridge {
             logger::debug("Plugin execution completed");
             logger::debug("Serializing result to JSON");
 
-            if result_py.hasattr("to_json")? {
+            let (json_str, ser_elapsed) = if result_py.hasattr("to_json")? {
                 let ser_start = Instant::now();
                 let to_json_result = result_py.call_method0("to_json")?;
                 let json_str = if let Ok(json_bytes) = to_json_result.extract::<Vec<u8>>() {
@@ -85,7 +88,7 @@ impl Bridge {
                     callable_path,
                     format_duration(ser_elapsed)
                 ));
-                Ok(json_str)
+                (json_str, ser_elapsed)
             } else {
                 let ser_start = Instant::now();
                 let dumps = json_module.getattr("dumps")?;
@@ -96,8 +99,16 @@ impl Bridge {
                     callable_path,
                     format_duration(ser_elapsed)
                 ));
-                Ok(json_str)
-            }
+                (json_str, ser_elapsed)
+            };
+
+            Ok(PluginInvocationResult {
+                output: json_str,
+                timings: Some(PluginInvocationTimings {
+                    python_invocation: call_elapsed,
+                    serialization: ser_elapsed,
+                }),
+            })
         })
     }
 
@@ -114,40 +125,70 @@ impl Bridge {
         let (class_name, method_name) = (parts[0], parts[1]);
 
         let class = module.getattr(class_name).map_err(|e| {
-            BridgeError::Python(format!("Failed to get class '{}': {}", class_name, e))
+            BridgeError::Python(format_python_error(
+                module.py(),
+                e,
+                &format!("Failed to get class '{}'", class_name),
+            ))
         })?;
 
-        let instance = class.call((), Some(kwargs)).map_err(|e| {
-            let error_msg = format!("{}", e);
-            let enhanced_msg = if error_msg.contains("missing")
-                && error_msg.contains("required positional argument")
-            {
-                format!(
-                    "Failed to instantiate '{}': {}\n\nHint: This error may occur when plugin metadata is incomplete. Try running:\n  r2x sync\n\nThis will refresh the plugin metadata cache.",
-                    class_name, error_msg
-                )
-            } else {
-                format!("Failed to instantiate '{}': {}", class_name, error_msg)
-            };
-            BridgeError::Python(enhanced_msg)
+        let instance = class.call((), Some(kwargs)).map_err(|err| {
+            let raw_msg = err.to_string();
+            let mut formatted = format_python_error(
+                class.py(),
+                err,
+                &format!("Failed to instantiate '{}'", class_name),
+            );
+            if raw_msg.contains("missing") && raw_msg.contains("required positional argument") {
+                formatted.push_str("\n\nHint: This may happen if the plugin metadata cache is stale. Try running:\n  r2x sync");
+            }
+            BridgeError::Python(formatted)
         })?;
 
         let method = instance.getattr(method_name).map_err(|e| {
-            BridgeError::Python(format!("Failed to get method '{}': {}", method_name, e))
+            BridgeError::Python(format_python_error(
+                instance.py(),
+                e,
+                &format!("Failed to get method '{}.{}'", class_name, method_name),
+            ))
         })?;
 
-        if let Some(stdin) = stdin_obj {
+        let accepts_stdin = if stdin_obj.is_some() {
+            match method_accepts_stdin(&method) {
+                Ok(result) => result,
+                Err(err) => {
+                    logger::debug(&format!(
+                        "Failed to inspect method '{}.{}' signature for stdin support: {}",
+                        class_name, method_name, err
+                    ));
+                    false
+                }
+            }
+        } else {
+            false
+        };
+
+        if accepts_stdin {
+            let stdin = stdin_obj.expect("checked Some above");
             method.call1((stdin,)).map_err(|e| {
-                BridgeError::Python(format!(
-                    "Method '{}.{}' failed: {}",
-                    class_name, method_name, e
+                BridgeError::Python(format_python_error(
+                    method.py(),
+                    e,
+                    &format!("Method '{}.{}' failed", class_name, method_name),
                 ))
             })
         } else {
+            if stdin_obj.is_some() {
+                logger::debug(&format!(
+                    "Method '{}.{}' does not declare 'system'/'stdin'; skipping stdin payload",
+                    class_name, method_name
+                ));
+            }
             method.call0().map_err(|e| {
-                BridgeError::Python(format!(
-                    "Method '{}.{}' failed: {}",
-                    class_name, method_name, e
+                BridgeError::Python(format_python_error(
+                    method.py(),
+                    e,
+                    &format!("Method '{}.{}' failed", class_name, method_name),
                 ))
             })
         }
@@ -163,7 +204,11 @@ impl Bridge {
     ) -> Result<pyo3::Bound<'py, PyAny>, BridgeError> {
         logger::debug(&format!("Function pattern: {}", callable_path));
         let func = module.getattr(callable_path).map_err(|e| {
-            BridgeError::Python(format!("Failed to get function '{}': {}", callable_path, e))
+            BridgeError::Python(format_python_error(
+                module.py(),
+                e,
+                &format!("Failed to get function '{}'", callable_path),
+            ))
         })?;
 
         logger::step(&format!("Function kwargs before system: {:?}", kwargs));
@@ -181,8 +226,13 @@ impl Bridge {
         }
 
         logger::step(&format!("Final function kwargs: {:?}", kwargs));
-        func.call((), Some(kwargs))
-            .map_err(|e| BridgeError::Python(format!("Function '{}' failed: {}", callable_path, e)))
+        func.call((), Some(kwargs)).map_err(|e| {
+            BridgeError::Python(format_python_error(
+                func.py(),
+                e,
+                &format!("Function '{}' failed", callable_path),
+            ))
+        })
     }
 }
 
@@ -193,4 +243,41 @@ fn format_duration(duration: Duration) -> String {
     } else {
         format!("{:.2}s", duration.as_secs_f64())
     }
+}
+
+fn format_python_error(py: pyo3::Python<'_>, err: pyo3::PyErr, context: &str) -> String {
+    if let Some(traceback_text) = render_traceback(py, &err) {
+        format!("{}:\n{}", context, traceback_text)
+    } else {
+        format!("{}: {}", context, err)
+    }
+}
+
+fn render_traceback(py: pyo3::Python<'_>, err: &pyo3::PyErr) -> Option<String> {
+    let traceback = err.traceback(py)?;
+    let traceback_module = PyModule::import(py, "traceback").ok()?;
+    let formatter = traceback_module.getattr("format_exception").ok()?;
+    let formatted = formatter
+        .call1((err.get_type(py), err.value(py), traceback))
+        .ok()?;
+    let lines: Vec<String> = formatted.extract().ok()?;
+    Some(lines.join(""))
+}
+
+fn method_accepts_stdin(method: &pyo3::Bound<'_, PyAny>) -> PyResult<bool> {
+    let code = method.getattr("__code__")?;
+    let argcount: usize = code.getattr("co_argcount")?.extract()?;
+    if argcount <= 1 {
+        return Ok(false);
+    }
+
+    let varnames: Vec<String> = code.getattr("co_varnames")?.extract()?;
+    let usable = argcount.min(varnames.len());
+    if usable <= 1 {
+        return Ok(false);
+    }
+
+    Ok(varnames[1..usable]
+        .iter()
+        .any(|name| name == "system" || name == "stdin"))
 }

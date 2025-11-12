@@ -100,7 +100,9 @@ impl DecoratorScanner {
         for decorated_match in decorated_functions {
             match self.extract_from_decorated_match(&decorated_match, file_path) {
                 Ok(registration) => registrations.push(registration),
-                Err(e) => debug!("extract_from_decorated_match error: {}", e),
+                Err(e) => {
+                    debug!("extract_from_decorated_match error: {}", e);
+                }
             }
         }
 
@@ -144,11 +146,15 @@ impl DecoratorScanner {
             return Err(anyhow!("Missing decorator class/method meta-variables"));
         };
 
-        let function_name = env
-            .get_match("$FUNC")
-            .ok_or_else(|| anyhow!("Missing $FUNC meta-variable in function definition"))?
-            .text()
-            .to_string();
+        let function_name = if let Some(func) = env.get_match("$FUNC") {
+            func.text().to_string()
+        } else if let Some(name) = Self::extract_function_name_from_line(function_line) {
+            name
+        } else {
+            return Err(anyhow!(
+                "Missing $FUNC meta-variable in function definition"
+            ));
+        };
 
         let params_text_env = env
             .get_multiple_matches("$$$PARAMS")

@@ -1,13 +1,15 @@
 [package]
 name = "r2x"
-version = "0.0.4"
-edition = "2021"
-authors = ["pesap <pesap@users.noreply.github.com>", "Micah Webb <micahpw@users.noreply.github.com>"]
+version = { workspace = true }
+edition = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+license = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+rust-version = { workspace = true }
+
 description = "A comprehensive framework plugin manager for the r2x power systems modeling ecosystem. Simplifies discovery, installation, and management of r2x framework plugins."
-license = "BSD-3-Clause"
-repository = "https://github.com/NREL/r2x-cli"
-homepage = "https://github.com/NREL/r2x-cli"
-documentation = "https://docs.rs/r2x"
 readme = "../../README.md"
 keywords = ["power-systems", "r2x", "cli", "plugin-manager", "uv"]
 categories = ["command-line-utilities", "development-tools"]
@@ -19,6 +21,7 @@ license = false
 eula = false
 
 [dependencies]
+atty = "0.2"
 clap = { version = "4.5", features = ["derive"] }
 colored = "3.0"
 serde = { version = "1.0", features = ["derive"] }
@@ -56,7 +59,3 @@ path = "../r2x-logger"
 assert_cmd = "2.1"
 predicates = "3.0"
 tempfile = "3.8"
-
-[profile.dist]
-inherits = "release"
-lto = "thin"

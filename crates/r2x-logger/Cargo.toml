@@ -1,10 +1,15 @@
 [package]
 name = "r2x-logger"
-version = "0.0.4"
-edition = "2021"
+version = "0.0.1"
+edition = { workspace = true }
+authors = { workspace = true }
+repository = { workspace = true }
+license = { workspace = true }
+homepage = { workspace = true }
+documentation = { workspace = true }
+rust-version = { workspace = true }
+
 description = "Logging utilities for the r2x CLI"
-license = "BSD-3-Clause"
-repository = "https://github.com/NREL/r2x-cli"
 publish = false
 
 [dependencies]

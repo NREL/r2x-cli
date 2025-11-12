@@ -1,10 +1,13 @@
 use crate::errors::{BridgeError, ManifestError, PipelineError};
+use crate::logger;
 use crate::r2x_manifest;
 use crate::GlobalOpts;
 use clap::Parser;
 use pipeline::handle_pipeline_mode;
 use plugin::handle_plugin_command;
 use r2x_manifest::runtime::{build_runtime_bindings, RuntimeBindings};
+use r2x_python::plugin_invoker::PluginInvocationTimings;
+use std::time::Duration;
 
 mod pipeline;
 mod plugin;
@@ -127,4 +130,24 @@ pub(super) fn build_call_target(bindings: &RuntimeBindings) -> Result<String, Ru
     };
 
     Ok(target)
+}
+
+pub(super) fn format_duration(duration: Duration) -> String {
+    let total_ms = duration.as_millis();
+    if total_ms < 1000 {
+        format!("{}ms", total_ms)
+    } else {
+        format!("{:.2}s", duration.as_secs_f64())
+    }
+}
+
+pub(super) fn print_plugin_timing_breakdown(timings: &PluginInvocationTimings) {
+    logger::debug(&format!(
+        "Plugin python invocation {}",
+        format_duration(timings.python_invocation)
+    ));
+    logger::debug(&format!(
+        "Plugin serialization {}",
+        format_duration(timings.serialization)
+    ));
 }
