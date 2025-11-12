@@ -42,18 +42,23 @@ anyhow = "1.0"
 
 [dependencies.r2x-manifest]
 path = "../r2x-manifest"
+version = "0.0.1"
 
 [dependencies.r2x-ast]
 path = "../r2x-ast"
+version = "0.0.1"
 
 [dependencies.r2x-python]
 path = "../r2x-python"
+version = "0.0.1"
 
 [dependencies.r2x-config]
 path = "../r2x-config"
+version = "0.0.1"
 
 [dependencies.r2x-logger]
 path = "../r2x-logger"
+version = "0.0.1"
 
 [dev-dependencies]
 assert_cmd = "2.1"
