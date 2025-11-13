@@ -24,6 +24,3 @@ r2x-ast = { path = "crates/r2x-ast", version = "0.0.1" }
 [profile.dist]
 inherits = "release"
 lto = "thin"
-
-[workspace.metadata.dist]
-allow-dirty = ["ci"]
