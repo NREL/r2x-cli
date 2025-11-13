@@ -69,7 +69,7 @@ jobs:
         shell: bash
         # Check that files are not equivalent before linking.
         run: |
-          if ! ["$pythonLocation/bin/python" -ef "$pythonLocation/bin/python3.12"]; then
+          if ! [ "$pythonLocation/bin/python" -ef "$pythonLocation/bin/python3.12" ]; then
             ln -sf "$pythonLocation/bin/python" "$pythonLocation/bin/python3.12"
           fi
       - name: Ensure python3.12 alias (windows)
