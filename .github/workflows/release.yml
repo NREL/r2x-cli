@@ -204,7 +204,10 @@ jobs:
           python-version: "3.12"
       - name: Ensure python3.12 alias (unix)
         shell: bash
-        run: ln -sf "$pythonLocation/bin/python" "$pythonLocation/bin/python3.12"
+        run: |
+          if ! [ "$pythonLocation/bin/python" -ef "$pythonLocation/bin/python3.12" ]; then
+            ln -sf "$pythonLocation/bin/python" "$pythonLocation/bin/python3.12"
+          fi
       - name: Install cached dist
         uses: actions/download-artifact@v4
         with:
