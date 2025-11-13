@@ -61,7 +61,7 @@ jobs:
           persist-credentials: false
           submodules: recursive
       - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Ensure python3.12 alias (unix)
@@ -199,7 +199,7 @@ jobs:
           persist-credentials: false
           submodules: recursive
       - name: Setup Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - name: Ensure python3.12 alias (unix)
