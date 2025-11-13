@@ -290,11 +290,6 @@ impl Config {
 
             return Err("Failed to locate uv after installation. Verify that ~/.local/bin or ~/.cargo/bin is in your PATH".into());
         }
-
-        #[cfg(target_os = "windows")]
-        {
-            Err("uv is not installed. Please install it from: https://docs.astral.sh/uv/getting-started/installation/".into())
-        }
     }
 
     pub fn ensure_cache_path(&mut self) -> Result<String, Box<dyn std::error::Error>> {

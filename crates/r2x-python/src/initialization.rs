@@ -92,7 +92,10 @@ impl Bridge {
                 BridgeError::Initialization("No python3.X directory found in venv/lib".to_string())
             })?;
 
-        let site_packages = python_version_dir.path().join(SITE_PACKAGES);
+        let site_packages = resolve_site_package_path(&venv_path).map_err(|e| {
+            BridgeError::Initialization(format!("Failed to resolve site package path"))
+        })?;
+
         logger::debug(&format!(
             "site_packages: {}, exists: {}",
             site_packages.display(),
