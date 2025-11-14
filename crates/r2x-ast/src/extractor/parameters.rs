@@ -1,5 +1,13 @@
+#![allow(private_interfaces)]
+
 use super::*;
-use r2x_manifest::types::ParameterEntry;
+
+struct ParameterEntry {
+    pub name: String,
+    pub annotation: Option<String>,
+    pub default: Option<String>,
+    pub is_required: bool,
+}
 
 impl PluginExtractor {
     pub(super) fn extract_class_parameters_from_content(

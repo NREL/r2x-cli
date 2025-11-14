@@ -1,20 +1,24 @@
 use anyhow::{anyhow, Result};
 use ast_grep_core::AstGrep;
 use ast_grep_language::Python;
-use r2x_manifest::{ConstructorArg, DiscoveryPlugin};
+use r2x_manifest::{
+    ConfigSpec, IOContract, IOSlot, ImplementationType, InvocationSpec, PluginKind, PluginSpec,
+    ResourceSpec, StoreMode, StoreSpec,
+};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use tracing::{debug, info};
 
 mod args;
+#[allow(dead_code)]
 mod parameters;
+#[allow(dead_code)]
 mod resolver;
 
 #[cfg(test)]
 mod tests;
 
-/// Extract plugin definitions from Python source code using pure AST parsing
 pub struct PluginExtractor {
     pub(crate) python_file_path: PathBuf,
     pub(crate) content: String,
@@ -22,19 +26,18 @@ pub struct PluginExtractor {
 }
 
 impl PluginExtractor {
-    /// Create a new extractor for a Python file
     pub fn new(python_file_path: PathBuf) -> Result<Self> {
         debug!("Initializing plugin extractor for: {:?}", python_file_path);
 
         let content = fs::read_to_string(&python_file_path)?;
-        if !content.contains("def register_plugin") {
+        if !content.contains("PluginManifest") && !content.contains("manifest.add") {
             return Err(anyhow!(
-                "No register_plugin function found in: {:?}",
+                "No PluginManifest found in: {:?}",
                 python_file_path
             ));
         }
 
-        let import_map = PluginExtractor::build_import_map_static(&content);
+        let import_map = Self::build_import_map_static(&content);
 
         Ok(PluginExtractor {
             python_file_path,
@@ -43,112 +46,179 @@ impl PluginExtractor {
         })
     }
 
-    /// Extract all plugins from the register_plugin() function using pure AST parsing
-    pub fn extract_plugins(&self) -> Result<Vec<DiscoveryPlugin>> {
+    pub fn extract_plugins(&self) -> Result<Vec<PluginSpec>> {
         debug!(
-            "Extracting plugins via pure AST parsing from: {:?}",
+            "Extracting plugins via AST parsing from: {:?}",
             self.python_file_path
         );
 
         let sg = AstGrep::new(&self.content, Python);
         let root = sg.root();
-        let package_calls: Vec<_> = root.find_all("Package($$$_)").collect();
 
-        if package_calls.is_empty() {
-            return Err(anyhow!("No Package() call found"));
+        let manifest_add_calls: Vec<_> = root.find_all("manifest.add($$$_)").collect();
+
+        if manifest_add_calls.is_empty() {
+            return Err(anyhow!("No manifest.add() calls found"));
         }
 
-        debug!("Found {} Package() calls", package_calls.len());
+        debug!("Found {} manifest.add() calls", manifest_add_calls.len());
         let mut plugins = Vec::new();
 
-        for package_match in package_calls {
-            let package_text = package_match.text();
-            if !package_text.contains("plugins") {
-                debug!("Package() call doesn't have plugins parameter, skipping");
-                continue;
-            }
-
-            if let Some(plugins_start) = package_text.find("plugins") {
-                let after_plugins = &package_text[plugins_start..];
-                if let Some(bracket_pos) = after_plugins.find(|c| c == '[' || c == '(') {
-                    let bracket_char = if after_plugins.chars().nth(bracket_pos) == Some('[') {
-                        ('[', ']')
-                    } else {
-                        ('(', ')')
-                    };
-
-                    let mut depth = 0;
-                    let mut plugins_content_end = bracket_pos;
-                    for (i, ch) in after_plugins.chars().enumerate().skip(bracket_pos) {
-                        if ch == bracket_char.0 {
-                            depth += 1;
-                        } else if ch == bracket_char.1 {
-                            depth -= 1;
-                            if depth == 0 {
-                                plugins_content_end = i;
-                                break;
-                            }
-                        }
-                    }
-
-                    let plugins_list = &after_plugins[bracket_pos + 1..plugins_content_end];
-                    let sg_list = AstGrep::new(plugins_list, Python);
-                    let list_root = sg_list.root();
-                    let all_calls: Vec<_> = list_root.find_all("$FUNC($$$ARGS)").collect();
-
-                    for call_match in all_calls {
-                        let call_text = call_match.text().to_string();
-                        if let Ok(plugin) = self.extract_plugin_from_call_match(&call_text) {
-                            debug!("Extracted plugin: {}", plugin.name);
-                            plugins.push(plugin);
-                        }
-                    }
-                }
+        for add_match in manifest_add_calls {
+            let add_text = add_match.text();
+            if let Ok(plugin) = self.extract_plugin_from_add_call(add_text.as_ref()) {
+                debug!("Extracted plugin: {}", plugin.name);
+                plugins.push(plugin);
             }
         }
 
-        info!("Extracted {} plugins from register_plugin()", plugins.len());
+        info!("Extracted {} plugins from manifest", plugins.len());
         Ok(plugins)
     }
 
-    fn extract_plugin_from_call_match(&self, call_text: &str) -> Result<DiscoveryPlugin> {
-        debug!(
-            "Parsing plugin instantiation from call match: {:?}",
-            call_text.lines().next()
-        );
+    fn extract_plugin_from_add_call(&self, add_text: &str) -> Result<PluginSpec> {
+        debug!("Parsing PluginSpec from manifest.add(): {}", add_text.lines().next().unwrap_or(""));
 
-        let plugin_type = call_text
-            .split('(')
-            .next()
-            .ok_or_else(|| anyhow!("Cannot extract function name from call"))?
-            .trim()
+        let sg = AstGrep::new(add_text, Python);
+        let root = sg.root();
+
+        let plugin_spec_calls: Vec<_> = root
+            .find_all("PluginSpec.$METHOD($$$ARGS)")
+            .collect();
+
+        if plugin_spec_calls.is_empty() {
+            return Err(anyhow!("No PluginSpec helper call found in manifest.add()"));
+        }
+
+        let spec_match = &plugin_spec_calls[0];
+        let env = spec_match.get_env();
+
+        let method = env
+            .get_match("$METHOD")
+            .ok_or_else(|| anyhow!("Missing helper method"))?
+            .text()
             .to_string();
 
-        debug!("Detected plugin type: {}", plugin_type);
+        let kind = match method.as_str() {
+            "parser" => PluginKind::Parser,
+            "exporter" => PluginKind::Exporter,
+            "function" => PluginKind::Modifier,
+            "upgrader" => PluginKind::Upgrader,
+            "utility" => PluginKind::Utility,
+            _ => return Err(anyhow!("Unknown PluginSpec helper method: {}", method)),
+        };
 
-        let constructor_args = self.extract_keyword_arguments_from_text(call_text)?;
-        let plugin_name = self.find_kwarg_value(&constructor_args, "name")?;
+        debug!("Detected plugin kind: {:?}", kind);
 
-        Ok(DiscoveryPlugin {
-            name: plugin_name,
-            plugin_type,
-            constructor_args,
-            resolved_references: Vec::new(),
-            decorators: Vec::new(),
+        let call_text = spec_match.text();
+        let kwargs = self.extract_keyword_arguments_from_text(call_text.as_ref())?;
+
+        let name = self.find_kwarg_value(&kwargs, "name")?;
+        let entry = self.find_kwarg_value(&kwargs, "entry")?;
+
+        let description = kwargs
+            .iter()
+            .find(|arg| arg.name == "description")
+            .map(|arg| arg.value.trim_matches('"').to_string());
+
+        let method_param = kwargs
+            .iter()
+            .find(|arg| arg.name == "method")
+            .map(|arg| arg.value.trim_matches('"').to_string());
+
+        let invocation = InvocationSpec {
+            implementation: ImplementationType::Class,
+            method: method_param,
+            constructor: Vec::new(),
+            call: Vec::new(),
+        };
+
+        let io = self.infer_io_contract(&kind);
+
+        let resources = self.extract_resources(&kwargs);
+
+        Ok(PluginSpec {
+            name,
+            kind,
+            entry,
+            invocation,
+            io,
+            resources,
+            upgrade: None,
+            description,
+            tags: Vec::new(),
         })
+    }
+
+    fn infer_io_contract(&self, kind: &PluginKind) -> IOContract {
+        match kind {
+            PluginKind::Parser => IOContract {
+                consumes: vec![IOSlot::StoreFolder, IOSlot::ConfigFile],
+                produces: vec![IOSlot::System],
+            },
+            PluginKind::Exporter => IOContract {
+                consumes: vec![IOSlot::System, IOSlot::ConfigFile],
+                produces: vec![IOSlot::Folder],
+            },
+            PluginKind::Modifier => IOContract {
+                consumes: vec![IOSlot::System],
+                produces: vec![IOSlot::System],
+            },
+            _ => IOContract {
+                consumes: Vec::new(),
+                produces: Vec::new(),
+            },
+        }
+    }
+
+    fn extract_resources(&self, kwargs: &[args::KwArg]) -> Option<ResourceSpec> {
+        let config = kwargs
+            .iter()
+            .find(|arg| arg.name == "config")
+            .map(|arg| {
+                let config_class = arg.value.trim().to_string();
+                let module = self
+                    .import_map
+                    .get(&config_class)
+                    .cloned()
+                    .unwrap_or_default();
+
+                ConfigSpec {
+                    module,
+                    name: config_class,
+                    fields: Vec::new(),
+                }
+            });
+
+        let store = kwargs
+            .iter()
+            .find(|arg| arg.name == "store")
+            .map(|arg| {
+                let value = arg.value.trim();
+                if value == "True" || value == "true" {
+                    StoreSpec {
+                        mode: StoreMode::Folder,
+                        path: None,
+                    }
+                } else {
+                    StoreSpec {
+                        mode: StoreMode::Folder,
+                        path: Some(value.trim_matches('"').to_string()),
+                    }
+                }
+            });
+
+        if config.is_some() || store.is_some() {
+            Some(ResourceSpec { store, config })
+        } else {
+            None
+        }
     }
 
     fn build_import_map_static(content: &str) -> HashMap<String, String> {
         let mut map = HashMap::new();
-        let register_plugin_start = if let Some(pos) = content.find("def register_plugin") {
-            pos
-        } else {
-            0
-        };
 
-        let content_to_scan = &content[register_plugin_start..];
-
-        for line in content_to_scan.lines() {
+        for line in content.lines() {
             let line = line.trim();
             if line.starts_with('#') {
                 continue;
@@ -186,5 +256,14 @@ impl PluginExtractor {
 
         debug!("Built import map with {} entries", map.len());
         map
+    }
+
+    pub fn resolve_references(
+        &self,
+        _plugin: &mut PluginSpec,
+        _package_root: &std::path::Path,
+        _package_name: &str,
+    ) -> Result<()> {
+        Ok(())
     }
 }
