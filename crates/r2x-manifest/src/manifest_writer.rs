@@ -44,7 +44,7 @@ pub fn read_from_path(manifest_path: &Path) -> Result<Manifest> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{ConstructorArg, DiscoveryPlugin, Metadata, Package};
+    use crate::types::{ArgumentSpec, IOContract, ImplementationType, InvocationSpec, Metadata, Package, PluginKind, PluginSpec};
     use tempfile::TempDir;
 
     #[test]
@@ -61,30 +61,38 @@ mod tests {
             install_type: Some("explicit".to_string()),
             installed_by: Vec::new(),
             dependencies: Vec::new(),
-            plugins: vec![DiscoveryPlugin {
+            plugins: vec![PluginSpec {
                 name: "example-plugin".to_string(),
-                plugin_type: "ParserPlugin".to_string(),
-                constructor_args: vec![
-                    ConstructorArg {
-                        name: "name".to_string(),
-                        value: "example-plugin".to_string(),
-                        arg_type: "string".to_string(),
-                    },
-                    ConstructorArg {
-                        name: "obj".to_string(),
-                        value: "ExampleParser".to_string(),
-                        arg_type: "class_reference".to_string(),
-                    },
-                ],
-                resolved_references: Vec::new(),
-                decorators: Vec::new(),
+                kind: PluginKind::Parser,
+                entry: "example_module.ExampleParser".to_string(),
+                invocation: InvocationSpec {
+                    implementation: ImplementationType::Class,
+                    method: None,
+                    constructor: vec![
+                        ArgumentSpec {
+                            name: "name".to_string(),
+                            annotation: Some("str".to_string()),
+                            default: Some("example-plugin".to_string()),
+                            required: false,
+                        },
+                    ],
+                    call: vec![],
+                },
+                io: IOContract {
+                    consumes: vec![],
+                    produces: vec![],
+                },
+                resources: None,
+                upgrade: None,
+                description: None,
+                tags: vec![],
             }],
             decorator_registrations: vec![],
         }];
 
         let manifest = Manifest {
             metadata: Metadata {
-                version: "1.0".to_string(),
+                version: "2.0".to_string(),
                 generated_at: chrono::Utc::now().to_rfc3339(),
                 uv_lock_path: None,
             },
@@ -101,7 +109,7 @@ mod tests {
         assert_eq!(loaded.packages[0].name, "r2x-example");
         assert_eq!(loaded.packages[0].editable_install, true);
         assert_eq!(loaded.packages[0].plugins[0].name, "example-plugin");
-        assert_eq!(loaded.packages[0].plugins[0].constructor_args.len(), 2);
+        assert_eq!(loaded.packages[0].plugins[0].invocation.constructor.len(), 1);
     }
 
     #[test]
@@ -113,6 +121,6 @@ mod tests {
         write_to_path(&manifest, &manifest_path).unwrap();
 
         let loaded = read_from_path(&manifest_path).unwrap();
-        assert_eq!(loaded.metadata.version, "1.0");
+        assert_eq!(loaded.metadata.version, "2.0");
     }
 }

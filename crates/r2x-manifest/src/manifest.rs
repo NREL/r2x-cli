@@ -255,7 +255,7 @@ mod tests {
     fn test_manifest_default() {
         let manifest = Manifest::default();
         assert!(manifest.is_empty());
-        assert_eq!(manifest.metadata.version, "1.0");
+        assert_eq!(manifest.metadata.version, "2.0");
     }
 
     #[test]

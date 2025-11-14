@@ -13,12 +13,11 @@ pub mod package_discovery;
 pub mod runtime;
 pub mod types;
 
-// Re-export main types for convenience
 pub use runtime::{build_runtime_bindings, RuntimeBindings};
 pub use types::{
-    CallableMetadata, ConfigMetadata, ConstructorArg, DecoratorRegistration, DiscoveryPlugin,
-    FunctionParameter, FunctionSignature, Manifest, Metadata, Package, ParameterEntry,
-    ParameterMetadata, Plugin, ResolvedReference, UpgraderMetadata, VarArgType,
+    ArgumentSpec, ConfigField, ConfigSpec, DecoratorRegistration, FunctionParameter,
+    FunctionSignature, IOContract, IOSlot, ImplementationType, InvocationSpec, Manifest, Metadata,
+    Package, PluginKind, PluginSpec, ResourceSpec, StoreMode, StoreSpec, UpgradeSpec, VarArgType,
 };
 
 pub use errors::ManifestError;
