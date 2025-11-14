@@ -36,32 +36,20 @@ fn list_available_plugins() -> Result<(), RunError> {
     }
 
     println!("Available plugins:\n");
-    let mut packages: BTreeMap<String, BTreeMap<String, Vec<String>>> = BTreeMap::new();
-
+    let mut packages: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for pkg in &manifest.packages {
-        for plugin in &pkg.plugins {
-            packages
-                .entry(pkg.name.clone())
-                .or_default()
-                .entry(format!("{:?}", plugin.kind))
-                .or_default()
-                .push(plugin.name.clone());
-        }
+        let mut names: Vec<String> = pkg.plugins.iter().map(|p| p.name.clone()).collect();
+        names.sort();
+        packages.insert(pkg.name.clone(), names);
     }
 
-    let mut first = true;
-    for (package_name, types) in &packages {
-        if !first {
+    for (idx, (package_name, plugin_names)) in packages.iter().enumerate() {
+        if idx > 0 {
             println!();
         }
-        first = false;
-
         println!("{}:", package_name.bold());
-        for (type_name, plugin_names) in types {
-            println!("  {}:", type_name);
-            for plugin_name in plugin_names {
-                println!("    - {}", plugin_name);
-            }
+        for plugin_name in plugin_names {
+            println!("  - {}", plugin_name);
         }
     }
 

@@ -62,7 +62,8 @@ pub fn sync_manifest(_opts: &GlobalOpts) -> Result<(), String> {
                 package_name_full: package_name.to_string(),
                 dependencies,
                 package_version,
-                no_cache: false,
+                // Always re-scan when syncing so manifest reflects the latest plugin code
+                no_cache: true,
             },
         ) {
             Ok(_) => {
