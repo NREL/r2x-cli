@@ -99,7 +99,11 @@ impl Bridge {
             }
 
             if let Some(value) = config_dict.get_item(&param.name).ok().flatten() {
+                let path_alias = value.clone();
                 kwargs.set_item(&param.name, value)?;
+                if param.name == "folder_path" && !kwargs.contains("path")? {
+                    kwargs.set_item("path", path_alias)?;
+                }
             } else if param.required {
                 logger::warn(&format!(
                     "Required parameter '{}' missing in config",

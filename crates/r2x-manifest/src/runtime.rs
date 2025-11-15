@@ -1,10 +1,11 @@
-use crate::types::{ArgumentSpec, ConfigSpec, ImplementationType, PluginSpec};
+use crate::types::{ArgumentSpec, ConfigSpec, ImplementationType, PluginKind, PluginSpec};
 
 #[derive(Debug, Clone)]
 pub struct RuntimeBindings {
     pub entry_module: String,
     pub entry_name: String,
     pub implementation_type: ImplementationType,
+    pub plugin_kind: PluginKind,
     pub config: Option<ConfigSpec>,
     pub call_method: Option<String>,
     pub requires_store: bool,
@@ -35,6 +36,7 @@ pub fn build_runtime_bindings(plugin: &PluginSpec) -> RuntimeBindings {
         entry_module,
         entry_name,
         implementation_type: plugin.invocation.implementation.clone(),
+        plugin_kind: plugin.kind.clone(),
         config: plugin.resources.as_ref().and_then(|r| r.config.clone()),
         call_method,
         requires_store,

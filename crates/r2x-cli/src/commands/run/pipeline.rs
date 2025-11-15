@@ -413,8 +413,9 @@ fn build_plugin_config(
         }
     }
 
-    let mut final_config = serde_json::Map::new();
-    if bindings.implementation_type == r2x_manifest::ImplementationType::Class {
+        let mut final_config = serde_json::Map::new();
+        let mut store_value_for_folder: Option<serde_json::Value> = None;
+        if bindings.implementation_type == r2x_manifest::ImplementationType::Class {
         let mut config_class_params = serde_json::Map::new();
         let mut constructor_params = serde_json::Map::new();
         let config_param_names: HashSet<String> = bindings
@@ -486,7 +487,38 @@ fn build_plugin_config(
                 }
             };
 
+            store_value_for_folder = Some(store_value.clone());
             final_config.insert("data_store".to_string(), store_value);
+        }
+
+        if bindings.entry_parameters.iter().any(|p| p.name == "folder_path")
+            && !final_config.contains_key("folder_path")
+        {
+            let explicit_folder = if let serde_json::Value::Object(ref yaml_map) = yaml_config {
+                yaml_map
+                    .get("folder_path")
+                    .or_else(|| yaml_map.get("store_path"))
+                    .or_else(|| yaml_map.get("path"))
+                    .cloned()
+            } else {
+                None
+            };
+
+            let folder_value = explicit_folder
+                .or_else(|| {
+                    store_value_for_folder.as_ref().and_then(|value| match value {
+                        serde_json::Value::String(s) => Some(serde_json::Value::String(s.clone())),
+                        _ => None,
+                    })
+                })
+                .or_else(|| {
+                    inherited_store_path
+                        .map(|path| serde_json::Value::String(path.to_string()))
+                });
+
+            if let Some(value) = folder_value {
+                final_config.insert("folder_path".to_string(), value);
+            }
         }
     } else if let serde_json::Value::Object(ref yaml_map) = yaml_config {
         final_config.extend(yaml_map.clone());

@@ -176,7 +176,7 @@ impl PluginExtractor {
 
         for plugin_match in root.find_all("$PLUGIN($$$ARGS)") {
             let env = plugin_match.get_env();
-            let Some(callee) = env.get_match("$PLUGIN") else {
+            let Some(callee) = env.get_match("PLUGIN") else {
                 continue;
             };
             let callee_text = callee.text();

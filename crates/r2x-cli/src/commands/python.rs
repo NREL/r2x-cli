@@ -356,6 +356,84 @@ fn handle_python_show(_opts: GlobalOpts) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::fs;
+    use std::io;
+    use std::path::Path;
+    use tempfile::TempDir;
+
+    struct TestConfigGuard {
+        _dir: TempDir,
+    }
+
+    impl Drop for TestConfigGuard {
+        fn drop(&mut self) {
+            std::env::remove_var("R2X_CONFIG");
+        }
+    }
+
+    fn setup_test_config() -> TestConfigGuard {
+        let dir = TempDir::new().expect("tempdir");
+        let base = dir.path();
+        let config_path = base.join("r2x.toml");
+        let cache_path = base.join("cache");
+        let venv_path = base.join(".venv");
+        let uv_path = if cfg!(windows) {
+            base.join("uv.bat")
+        } else {
+            base.join("uv")
+        };
+
+        fs::create_dir_all(&cache_path).unwrap();
+        fs::create_dir_all(&venv_path).unwrap();
+        create_fake_python(&venv_path).unwrap();
+        write_stub_uv(&uv_path).unwrap();
+
+        let config_contents = format!(
+            "cache_path = \"{}\"\nuv_path = \"{}\"\nvenv_path = \"{}\"\npython_version = \"3.12\"\n",
+            cache_path.to_string_lossy(),
+            uv_path.to_string_lossy(),
+            venv_path.to_string_lossy()
+        );
+
+        fs::write(&config_path, config_contents).unwrap();
+        std::env::set_var("R2X_CONFIG", &config_path);
+
+        TestConfigGuard { _dir: dir }
+    }
+
+    #[cfg(unix)]
+    fn write_stub_uv(path: &Path) -> io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+        fs::write(path, "#!/bin/sh\nexit 0\n")?;
+        let mut perms = fs::metadata(path)?.permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(path, perms)
+    }
+
+    #[cfg(windows)]
+    fn write_stub_uv(path: &Path) -> io::Result<()> {
+        fs::write(path, "@echo off\r\nexit /b 0\r\n")
+    }
+
+    #[cfg(unix)]
+    fn create_fake_python(venv_path: &Path) -> io::Result<()> {
+        use std::os::unix::fs::PermissionsExt;
+        let bin = venv_path.join("bin");
+        fs::create_dir_all(&bin)?;
+        let python = bin.join("python");
+        fs::write(&python, "#!/bin/sh\nexit 0\n")?;
+        let mut perms = fs::metadata(&python)?.permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(python, perms)
+    }
+
+    #[cfg(windows)]
+    fn create_fake_python(venv_path: &Path) -> io::Result<()> {
+        let scripts = venv_path.join("Scripts");
+        fs::create_dir_all(&scripts)?;
+        fs::write(scripts.join("python.exe"), [])?;
+        Ok(())
+    }
 
     fn normal_opts() -> GlobalOpts {
         GlobalOpts {
@@ -367,6 +445,7 @@ mod tests {
 
     #[test]
     fn test_python_install() {
+        let _guard = setup_test_config();
         handle_python(
             PythonAction::Install {
                 version: Some("3.12".to_string()),
@@ -377,35 +456,49 @@ mod tests {
 
     #[test]
     fn test_python_install_no_version() {
+        let _guard = setup_test_config();
         handle_python(PythonAction::Install { version: None }, normal_opts());
     }
 
     #[test]
     fn test_python_path() {
+        let _guard = setup_test_config();
         handle_python(PythonAction::Path, normal_opts());
     }
 
     #[test]
     fn test_python_show() {
+        let _guard = setup_test_config();
         handle_python(PythonAction::Show, normal_opts());
     }
 
     #[test]
     fn test_venv_create() {
+        let _guard = setup_test_config();
         handle_venv(None, false, normal_opts());
     }
 
     #[test]
     fn test_venv_create_skip_confirm() {
+        let _guard = setup_test_config();
         handle_venv(None, true, normal_opts());
     }
 
     #[test]
     fn test_venv_path() {
+        let _guard = setup_test_config();
         handle_venv(
             Some(VenvAction::Path { new_path: None }),
             false,
             normal_opts(),
         );
+    }
+
+    #[test]
+    fn test_venv_create_yes_flag() {
+        let _guard = setup_test_config();
+        std::env::set_var("R2X_VENV_YES", "1");
+        handle_venv(None, false, normal_opts());
+        std::env::remove_var("R2X_VENV_YES");
     }
 }
