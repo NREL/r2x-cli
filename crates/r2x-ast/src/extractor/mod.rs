@@ -2,8 +2,8 @@ use anyhow::{anyhow, Result};
 use ast_grep_core::AstGrep;
 use ast_grep_language::Python;
 use r2x_manifest::{
-    ArgumentSpec, ConfigSpec, IOContract, IOSlot, ImplementationType, InvocationSpec, PluginKind,
-    PluginSpec, ResourceSpec, StoreMode, StoreSpec,
+    ArgumentSpec, ConfigField, ConfigSpec, IOContract, IOSlot, ImplementationType, InvocationSpec,
+    PluginKind, PluginSpec, ResourceSpec, StoreMode, StoreSpec,
 };
 use std::collections::HashMap;
 use std::fs;
@@ -143,10 +143,11 @@ impl PluginExtractor {
             self.find_optional_kwarg_by_role(&kwargs, args::KwArgRole::Description);
 
         let method_param = self.find_optional_kwarg_by_role(&kwargs, args::KwArgRole::Method);
+        let resolved_method = method_param.or_else(|| Self::default_method_for_kind(&kind));
 
         let invocation = InvocationSpec {
             implementation: ImplementationType::Class,
-            method: method_param,
+            method: resolved_method,
             constructor: constructor_args,
             call: Vec::new(),
         };
@@ -218,15 +219,17 @@ impl PluginExtractor {
         let description = self.find_optional_kwarg_by_role(&kwargs, args::KwArgRole::Description);
         let method_param = self.find_optional_kwarg_by_role(&kwargs, args::KwArgRole::Method);
         let constructor_args = self.resolve_entry_parameters(&entry, &ImplementationType::Class);
+        let kind = self.infer_kind_from_constructor(constructor);
+        let resolved_method =
+            method_param.or_else(|| Self::default_method_for_kind(&kind));
 
         let invocation = InvocationSpec {
             implementation: Self::infer_invocation_type(&entry),
-            method: method_param,
+            method: resolved_method,
             constructor: constructor_args,
             call: Vec::new(),
         };
 
-        let kind = self.infer_kind_from_constructor(constructor);
         let io = self.infer_io_contract(&kind);
         let resources = self.extract_resources(&kwargs);
 
@@ -364,6 +367,14 @@ impl PluginExtractor {
         }
     }
 
+    fn default_method_for_kind(kind: &PluginKind) -> Option<String> {
+        match kind {
+            PluginKind::Parser => Some("build_system".to_string()),
+            PluginKind::Exporter => Some("export".to_string()),
+            _ => None,
+        }
+    }
+
     fn looks_like_plugin_constructor(callee: &str) -> bool {
         callee
             .rsplit('.')
@@ -404,11 +415,12 @@ impl PluginExtractor {
                     .get(&config_class)
                     .map(|m| self.normalize_module_path(m))
                     .unwrap_or_else(|| self.current_module.clone());
+                let fields = self.extract_config_fields(&module, &config_class);
 
                 ConfigSpec {
                     module,
                     name: config_class,
-                    fields: Vec::new(),
+                    fields,
                 }
             });
 
@@ -570,5 +582,228 @@ impl PluginExtractor {
     fn load_module_source(&self, module: &str) -> Option<String> {
         let path = self.resolve_module_file(module)?;
         fs::read_to_string(path).ok()
+    }
+
+    fn extract_config_fields(&self, module: &str, class_name: &str) -> Vec<ConfigField> {
+        let source = match self.load_module_source(module) {
+            Some(src) => src,
+            None => return Vec::new(),
+        };
+
+        let mut fields = Vec::new();
+        let mut in_class = false;
+        let mut class_indent = 0usize;
+        let mut capturing = false;
+        let mut buffer = String::new();
+        let mut bracket_depth = 0i32;
+        let mut seen_equal = false;
+        let mut docstring: Option<String> = None;
+
+        for line in source.lines() {
+            let trimmed = line.trim_start();
+            let indent = line.len() - trimmed.len();
+
+            if !in_class {
+                if let Some(rest) = trimmed.strip_prefix("class ") {
+                    if rest.starts_with(class_name) {
+                        let suffix = &rest[class_name.len()..];
+                        if suffix.starts_with('(') || suffix.starts_with(':') {
+                            in_class = true;
+                            class_indent = indent;
+                        }
+                    }
+                }
+                continue;
+            }
+
+            if let Some(delim) = docstring.clone() {
+                if trimmed.contains(&delim) {
+                    docstring = None;
+                }
+                continue;
+            }
+            if trimmed.starts_with("\"\"\"") || trimmed.starts_with("'''") {
+                let delim = if trimmed.starts_with("\"\"\"") {
+                    "\"\"\"".to_string()
+                } else {
+                    "'''".to_string()
+                };
+                if !trimmed.ends_with(&delim) || trimmed.len() == delim.len() {
+                    docstring = Some(delim);
+                }
+                continue;
+            }
+
+            if indent <= class_indent && trimmed.starts_with("class ") && !capturing {
+                break;
+            }
+
+            if trimmed.starts_with("def ") || trimmed.starts_with("@") {
+                capturing = false;
+                continue;
+            }
+
+            if !capturing {
+                if trimmed.is_empty() || trimmed.starts_with('#') {
+                    continue;
+                }
+                if !(trimmed
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_alphabetic() || c == '_')
+                    .unwrap_or(false))
+                {
+                    continue;
+                }
+                if trimmed.contains(':') || trimmed.contains('=') {
+                    buffer.clear();
+                    buffer.push_str(trimmed);
+                    capturing = true;
+                    bracket_depth = Self::bracket_delta(trimmed);
+                    seen_equal = Self::line_contains_equals(trimmed);
+                    if seen_equal && bracket_depth <= 0 {
+                        if let Some(field) = Self::parse_config_field_definition(&buffer) {
+                            fields.push(field);
+                        }
+                        capturing = false;
+                    }
+                    continue;
+                }
+            } else {
+                buffer.push(' ');
+                buffer.push_str(trimmed);
+                bracket_depth += Self::bracket_delta(trimmed);
+                if !seen_equal && Self::line_contains_equals(trimmed) {
+                    seen_equal = true;
+                }
+                if seen_equal && bracket_depth <= 0 {
+                    if let Some(field) = Self::parse_config_field_definition(&buffer) {
+                        fields.push(field);
+                    }
+                    capturing = false;
+                }
+            }
+        }
+
+        fields
+    }
+
+    fn line_contains_equals(line: &str) -> bool {
+        let mut depth = 0i32;
+        let mut chars = line.chars().peekable();
+        let mut in_str: Option<char> = None;
+        while let Some(ch) = chars.next() {
+            if let Some(quote) = in_str {
+                if ch == '\\' {
+                    chars.next();
+                    continue;
+                }
+                if ch == quote {
+                    in_str = None;
+                }
+                continue;
+            }
+            if ch == '"' || ch == '\'' {
+                in_str = Some(ch);
+                continue;
+            }
+            match ch {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth -= 1,
+                '=' if depth == 0 => return true,
+                _ => {}
+            }
+        }
+        false
+    }
+
+    fn bracket_delta(line: &str) -> i32 {
+        let mut depth = 0;
+        let mut chars = line.chars().peekable();
+        let mut in_str: Option<char> = None;
+        while let Some(ch) = chars.next() {
+            if let Some(quote) = in_str {
+                if ch == '\\' {
+                    chars.next();
+                    continue;
+                }
+                if ch == quote {
+                    in_str = None;
+                }
+                continue;
+            }
+            if ch == '"' || ch == '\'' {
+                in_str = Some(ch);
+                continue;
+            }
+            match ch {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth -= 1,
+                _ => {}
+            }
+        }
+        depth
+    }
+
+    fn parse_config_field_definition(definition: &str) -> Option<ConfigField> {
+        let (name_part, remainder) = definition.split_once(':')?;
+        let name = name_part.trim();
+        if name.is_empty() || name.starts_with("class") || name.starts_with("def") {
+            return None;
+        }
+
+        let rest = remainder.trim();
+        let (annotation, default) = Self::split_annotation_and_default(rest);
+        let annotation = annotation.filter(|s| !s.is_empty());
+        let default = default.and_then(|value| {
+            let cleaned = value.split('#').next().unwrap().trim();
+            if cleaned.is_empty() {
+                None
+            } else {
+                Some(cleaned.trim().to_string())
+            }
+        });
+        let required = default.is_none();
+
+        Some(ConfigField {
+            name: name.to_string(),
+            annotation,
+            default,
+            required,
+        })
+    }
+
+    fn split_annotation_and_default(text: &str) -> (Option<String>, Option<String>) {
+        let mut depth = 0i32;
+        let mut in_str: Option<char> = None;
+        for (idx, ch) in text.char_indices() {
+            if let Some(quote) = in_str {
+                if ch == '\\' {
+                    continue;
+                }
+                if ch == quote {
+                    in_str = None;
+                }
+                continue;
+            }
+            if ch == '"' || ch == '\'' {
+                in_str = Some(ch);
+                continue;
+            }
+            match ch {
+                '(' | '[' | '{' => depth += 1,
+                ')' | ']' | '}' => depth -= 1,
+                '=' if depth <= 0 => {
+                    let annotation = text[..idx].trim();
+                    let default = text[idx + 1..].trim();
+                    return (
+                        (!annotation.is_empty()).then(|| annotation.to_string()),
+                        Some(default.to_string()),
+                    );
+                }
+                _ => {}
+            }
+        }
+        ((!text.is_empty()).then(|| text.trim().to_string()), None)
     }
 }
