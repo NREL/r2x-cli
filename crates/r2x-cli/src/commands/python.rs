@@ -359,7 +359,7 @@ mod tests {
 
     fn normal_opts() -> GlobalOpts {
         GlobalOpts {
-            quiet: false,
+            quiet: 0,
             verbose: 0,
             log_python: false,
         }

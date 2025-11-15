@@ -93,9 +93,9 @@ pub struct PluginCommand {
     pub args: Vec<String>,
 }
 
-pub fn handle_run(cmd: RunCommand, _opts: GlobalOpts) -> Result<(), RunError> {
+pub fn handle_run(cmd: RunCommand, opts: GlobalOpts) -> Result<(), RunError> {
     match cmd.command {
-        Some(RunSubcommand::Plugin(plugin_cmd)) => handle_plugin_command(plugin_cmd),
+        Some(RunSubcommand::Plugin(plugin_cmd)) => handle_plugin_command(plugin_cmd, &opts),
         None => {
             let yaml_path = cmd.yaml_path.unwrap_or_else(|| "pipeline.yaml".to_string());
             handle_pipeline_mode(
@@ -105,6 +105,7 @@ pub fn handle_run(cmd: RunCommand, _opts: GlobalOpts) -> Result<(), RunError> {
                 cmd.print,
                 cmd.dry_run,
                 cmd.output,
+                &opts,
             )
         }
     }

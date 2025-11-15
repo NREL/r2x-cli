@@ -4,19 +4,23 @@ use crate::logger;
 use crate::package_verification;
 use crate::python_bridge::Bridge;
 use crate::r2x_manifest::Manifest;
+use crate::GlobalOpts;
 use colored::Colorize;
 use r2x_python::plugin_invoker::PluginInvocationResult;
 use std::collections::BTreeMap;
 use std::time::Instant;
 
-pub(super) fn handle_plugin_command(cmd: PluginCommand) -> Result<(), RunError> {
+pub(super) fn handle_plugin_command(
+    cmd: PluginCommand,
+    opts: &GlobalOpts,
+) -> Result<(), RunError> {
     match cmd.plugin_name {
         Some(plugin_name) => {
             if cmd.show_help {
                 show_plugin_help(&plugin_name)
                     .map_err(|e| RunError::Config(format!("Help error: {}", e)))?;
             } else {
-                run_plugin(&plugin_name, &cmd.args)?;
+                run_plugin(&plugin_name, &cmd.args, opts)?;
             }
         }
         None => {
@@ -59,7 +63,7 @@ fn list_available_plugins() -> Result<(), RunError> {
     Ok(())
 }
 
-fn run_plugin(plugin_name: &str, args: &[String]) -> Result<(), RunError> {
+fn run_plugin(plugin_name: &str, args: &[String], opts: &GlobalOpts) -> Result<(), RunError> {
     logger::step(&format!("Running plugin: {}", plugin_name));
     logger::debug(&format!("Received args: {:?}", args));
 
@@ -100,7 +104,11 @@ fn run_plugin(plugin_name: &str, args: &[String]) -> Result<(), RunError> {
     let duration_msg = format!("({})", super::format_duration(elapsed).dimmed());
 
     if !result.is_empty() && result != "null" {
-        println!("{}", result);
+        if opts.suppress_stdout() {
+            logger::debug("Plugin output suppressed due to -qq");
+        } else {
+            println!("{}", result);
+        }
     }
 
     if logger::get_verbosity() > 0 {

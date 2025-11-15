@@ -5,6 +5,7 @@ use crate::package_verification;
 use crate::pipeline_config::PipelineConfig;
 use crate::python_bridge::Bridge;
 use crate::r2x_manifest::{self, Manifest};
+use crate::GlobalOpts;
 use colored::Colorize;
 use r2x_config::Config;
 use std::collections::HashSet;
@@ -19,6 +20,7 @@ pub(super) fn handle_pipeline_mode(
     print: bool,
     dry_run: bool,
     output: Option<String>,
+    opts: &GlobalOpts,
 ) -> Result<(), RunError> {
     let config = PipelineConfig::load(&yaml_path)?;
 
@@ -36,7 +38,7 @@ pub(super) fn handle_pipeline_mode(
         if dry_run {
             show_pipeline_flow(&config, &name)?;
         } else {
-            run_pipeline(&config, &name, output.as_deref())?;
+            run_pipeline(&config, &name, output.as_deref(), opts)?;
         }
     } else {
         return Err(RunError::InvalidArgs(
@@ -121,6 +123,7 @@ fn run_pipeline(
     config: &PipelineConfig,
     pipeline_name: &str,
     output_file: Option<&str>,
+    opts: &GlobalOpts,
 ) -> Result<(), RunError> {
     let pipeline = config
         .get_pipeline(pipeline_name)
@@ -260,16 +263,18 @@ fn run_pipeline(
         .bold()
     );
 
-    if let Some(final_output) = current_stdin {
-        if let Some(output_path) = output_file {
-            logger::step(&format!("Writing output to: {}", output_path));
-            std::fs::write(output_path, final_output.as_bytes())
-                .map_err(|e| RunError::Pipeline(PipelineError::Io(e)))?;
-            logger::success(&format!("Output saved to: {}", output_path));
-        } else {
-            println!("{}", final_output);
+        if let Some(final_output) = current_stdin {
+            if let Some(output_path) = output_file {
+                logger::step(&format!("Writing output to: {}", output_path));
+                std::fs::write(output_path, final_output.as_bytes())
+                    .map_err(|e| RunError::Pipeline(PipelineError::Io(e)))?;
+                logger::success(&format!("Output saved to: {}", output_path));
+            } else if opts.suppress_stdout() {
+                logger::debug("Pipeline output suppressed due to -qq");
+            } else {
+                println!("{}", final_output);
+            }
         }
-    }
 
     Ok(())
 }
