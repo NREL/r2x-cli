@@ -1,14 +1,20 @@
 //! Common types and utilities shared across modules
 
-use clap::Parser;
+use clap::{ArgAction, Parser};
 
 /// Global CLI options available to all commands
 #[derive(Parser, Debug, Clone)]
 pub struct GlobalOpts {
-    #[arg(short, long, global = true, help = "Decrease verbosity")]
-    pub quiet: bool,
+    #[arg(
+        short = 'q',
+        long = "quiet",
+        global = true,
+        action = ArgAction::Count,
+        help = "Decrease verbosity (-q suppresses logs, -qq also hides plugin stdout)"
+    )]
+    pub quiet: u8,
 
-    #[arg(short, long, global = true, action = clap::ArgAction::Count, help = "Increase verbosity (-v for debug, -vv for trace)")]
+    #[arg(short, long, global = true, action = ArgAction::Count, help = "Increase verbosity (-v for debug, -vv for trace)")]
     pub verbose: u8,
 
     #[arg(
@@ -25,10 +31,15 @@ impl GlobalOpts {
     /// - 1: debug (-v)
     /// - 2: trace (-vv)
     pub fn verbosity_level(&self) -> u8 {
-        if self.quiet {
+        if self.quiet > 0 {
             0
         } else {
             self.verbose
         }
+    }
+
+    /// Returns true when output (plugin stdout) should be fully suppressed
+    pub fn suppress_stdout(&self) -> bool {
+        self.quiet >= 2
     }
 }

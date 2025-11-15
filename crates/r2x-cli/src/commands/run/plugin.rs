@@ -4,19 +4,23 @@ use crate::logger;
 use crate::package_verification;
 use crate::python_bridge::Bridge;
 use crate::r2x_manifest::Manifest;
+use crate::GlobalOpts;
 use colored::Colorize;
 use r2x_python::plugin_invoker::PluginInvocationResult;
 use std::collections::BTreeMap;
 use std::time::Instant;
 
-pub(super) fn handle_plugin_command(cmd: PluginCommand) -> Result<(), RunError> {
+pub(super) fn handle_plugin_command(
+    cmd: PluginCommand,
+    opts: &GlobalOpts,
+) -> Result<(), RunError> {
     match cmd.plugin_name {
         Some(plugin_name) => {
             if cmd.show_help {
                 show_plugin_help(&plugin_name)
                     .map_err(|e| RunError::Config(format!("Help error: {}", e)))?;
             } else {
-                run_plugin(&plugin_name, &cmd.args)?;
+                run_plugin(&plugin_name, &cmd.args, opts)?;
             }
         }
         None => {
@@ -36,32 +40,20 @@ fn list_available_plugins() -> Result<(), RunError> {
     }
 
     println!("Available plugins:\n");
-    let mut packages: BTreeMap<String, BTreeMap<String, Vec<String>>> = BTreeMap::new();
-
+    let mut packages: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for pkg in &manifest.packages {
-        for plugin in &pkg.plugins {
-            packages
-                .entry(pkg.name.clone())
-                .or_default()
-                .entry(plugin.plugin_type.clone())
-                .or_default()
-                .push(plugin.name.clone());
-        }
+        let mut names: Vec<String> = pkg.plugins.iter().map(|p| p.name.clone()).collect();
+        names.sort();
+        packages.insert(pkg.name.clone(), names);
     }
 
-    let mut first = true;
-    for (package_name, types) in &packages {
-        if !first {
+    for (idx, (package_name, plugin_names)) in packages.iter().enumerate() {
+        if idx > 0 {
             println!();
         }
-        first = false;
-
         println!("{}:", package_name.bold());
-        for (type_name, plugin_names) in types {
-            println!("  {}:", type_name);
-            for plugin_name in plugin_names {
-                println!("    - {}", plugin_name);
-            }
+        for plugin_name in plugin_names {
+            println!("  - {}", plugin_name);
         }
     }
 
@@ -71,12 +63,12 @@ fn list_available_plugins() -> Result<(), RunError> {
     Ok(())
 }
 
-fn run_plugin(plugin_name: &str, args: &[String]) -> Result<(), RunError> {
+fn run_plugin(plugin_name: &str, args: &[String], opts: &GlobalOpts) -> Result<(), RunError> {
     logger::step(&format!("Running plugin: {}", plugin_name));
     logger::debug(&format!("Received args: {:?}", args));
 
     let manifest = Manifest::load()?;
-    let (_pkg, disc_plugin) = manifest
+    let (_pkg, plugin) = manifest
         .packages
         .iter()
         .find_map(|pkg| {
@@ -87,7 +79,7 @@ fn run_plugin(plugin_name: &str, args: &[String]) -> Result<(), RunError> {
         })
         .ok_or_else(|| RunError::PluginNotFound(plugin_name.to_string()))?;
 
-    let bindings = super::runtime_bindings_from_disc(disc_plugin)?;
+    let bindings = r2x_manifest::build_runtime_bindings(plugin);
 
     package_verification::verify_and_ensure_plugin(&manifest, plugin_name)
         .map_err(|e| RunError::Verification(e.to_string()))?;
@@ -103,7 +95,7 @@ fn run_plugin(plugin_name: &str, args: &[String]) -> Result<(), RunError> {
     logger::debug(&format!("Config: {}", config_json));
 
     let start = Instant::now();
-    let invocation_result = bridge.invoke_plugin(&target, &config_json, None, Some(disc_plugin))?;
+    let invocation_result = bridge.invoke_plugin(&target, &config_json, None, Some(plugin))?;
     let PluginInvocationResult {
         output: result,
         timings,
@@ -112,7 +104,11 @@ fn run_plugin(plugin_name: &str, args: &[String]) -> Result<(), RunError> {
     let duration_msg = format!("({})", super::format_duration(elapsed).dimmed());
 
     if !result.is_empty() && result != "null" {
-        println!("{}", result);
+        if opts.suppress_stdout() {
+            logger::debug("Plugin output suppressed due to -qq");
+        } else {
+            println!("{}", result);
+        }
     }
 
     if logger::get_verbosity() > 0 {

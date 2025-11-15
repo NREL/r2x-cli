@@ -1,5 +1,13 @@
+#![allow(private_interfaces)]
+
 use super::*;
-use r2x_manifest::types::ParameterEntry;
+
+pub(super) struct ParameterEntry {
+    pub name: String,
+    pub annotation: Option<String>,
+    pub default: Option<String>,
+    pub is_required: bool,
+}
 
 impl PluginExtractor {
     pub(super) fn extract_class_parameters_from_content(
@@ -192,6 +200,11 @@ impl PluginExtractor {
             (
                 param_str[..colon_idx].trim(),
                 Some(param_str[colon_idx + 1..].trim()),
+            )
+        } else if let Some(eq_idx) = param_str.find('=') {
+            (
+                param_str[..eq_idx].trim(),
+                Some(param_str[eq_idx..].trim()),
             )
         } else {
             (param_str, None)

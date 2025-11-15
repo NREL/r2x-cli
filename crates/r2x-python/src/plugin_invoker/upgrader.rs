@@ -1,7 +1,7 @@
 use super::{logger, BridgeError, PluginInvocationResult, RuntimeBindings};
 use crate::Bridge;
 use pyo3::types::{PyAny, PyAnyMethods, PyDict, PyDictMethods, PyModule, PyString};
-use r2x_manifest::DiscoveryPlugin;
+use r2x_manifest::PluginSpec;
 use std::path::{Path, PathBuf};
 
 impl Bridge {
@@ -10,7 +10,7 @@ impl Bridge {
         target: &str,
         config_json: &str,
         runtime_bindings: Option<&RuntimeBindings>,
-        plugin_metadata: Option<&DiscoveryPlugin>,
+        plugin_metadata: Option<&PluginSpec>,
     ) -> Result<PluginInvocationResult, BridgeError> {
         pyo3::Python::attach(|py| {
             logger::debug(&format!("Invoking upgrader plugin: {}", target));
@@ -85,12 +85,14 @@ impl Bridge {
     }
 }
 
-fn find_arg_value<'a>(plugin: &'a DiscoveryPlugin, name: &str) -> Option<&'a str> {
-    plugin
-        .constructor_args
-        .iter()
-        .find(|arg| arg.name == name)
-        .map(|arg| arg.value.as_str())
+fn find_arg_value<'a>(plugin: &'a PluginSpec, name: &str) -> Option<&'a str> {
+    let upgrade = plugin.upgrade.as_ref()?;
+    match name {
+        "version_strategy" => upgrade.version_strategy_json.as_deref(),
+        "version_reader" => upgrade.version_reader_json.as_deref(),
+        "upgrade_steps" => upgrade.upgrade_steps_json.as_deref(),
+        _ => None,
+    }
 }
 
 impl Bridge {
@@ -130,6 +132,7 @@ impl Bridge {
 
         let mut system_data: Option<pyo3::Py<PyAny>> = None;
         let mut system_json_path: Option<PathBuf> = None;
+        let mut saw_system_step = false;
 
         for step in steps.try_iter()? {
             let step_obj = step.map_err(|e| BridgeError::Python(format!("{}", e)))?;
@@ -160,6 +163,7 @@ impl Bridge {
             ));
 
             let data_arg = if upgrade_is_system {
+                saw_system_step = true;
                 if system_data.is_none() {
                     let resolved =
                         resolve_system_json_path(&path_buf).map_err(BridgeError::Python)?;
@@ -224,6 +228,13 @@ impl Bridge {
                         .unwrap_or_else(|_| "<unknown>".into())
                 ));
             }
+        }
+
+        if !saw_system_step {
+            logger::debug(
+                "Upgrader executed only FILE steps; skipping system.json resolution and returning empty output",
+            );
+            return Ok(String::new());
         }
 
         let final_json_path = if let Some(json_path) = system_json_path {

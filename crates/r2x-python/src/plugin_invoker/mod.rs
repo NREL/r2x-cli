@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use r2x_logger as logger;
 use r2x_manifest::{
     runtime::{build_runtime_bindings, RuntimeBindings},
-    DiscoveryPlugin,
+    PluginKind, PluginSpec,
 };
 use std::time::Duration;
 
@@ -33,18 +33,15 @@ impl super::Bridge {
         target: &str,
         config_json: &str,
         stdin_json: Option<&str>,
-        plugin_metadata: Option<&DiscoveryPlugin>,
+        plugin_metadata: Option<&PluginSpec>,
     ) -> Result<PluginInvocationResult, BridgeError> {
         let runtime_bindings = match plugin_metadata {
-            Some(meta) => Some(
-                build_runtime_bindings(meta)
-                    .map_err(|e| BridgeError::Python(format!("Invalid plugin metadata: {}", e)))?,
-            ),
+            Some(meta) => Some(build_runtime_bindings(meta)),
             None => None,
         };
 
         if let Some(plugin) = plugin_metadata {
-            if plugin.plugin_type == "UpgraderPlugin" {
+            if plugin.kind == PluginKind::Upgrader {
                 logger::debug("Routing to upgrader plugin handler");
                 return self.invoke_upgrader_plugin(
                     target,

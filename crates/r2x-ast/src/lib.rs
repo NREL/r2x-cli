@@ -13,7 +13,7 @@ pub mod extractor;
 use anyhow::{anyhow, Result};
 use ast_grep_language::Python;
 use r2x_logger as logger;
-use r2x_manifest::{DecoratorRegistration, DiscoveryPlugin, FunctionSignature};
+use r2x_manifest::{DecoratorRegistration, FunctionSignature, PluginSpec};
 use std::path::Path;
 
 /// AST-based plugin discovery orchestrator
@@ -35,18 +35,26 @@ impl AstDiscovery {
         package_name_full: &str,
         venv_path: Option<&str>,
         _package_version: Option<&str>,
-    ) -> Result<(Vec<DiscoveryPlugin>, Vec<DecoratorRegistration>)> {
+    ) -> Result<(Vec<PluginSpec>, Vec<DecoratorRegistration>)> {
         let start_time = std::time::Instant::now();
         logger::info(&format!("AST discovery started for: {}", package_name_full));
 
         // Find the plugins.py file using entry_points.txt
-        let plugins_py =
+        let (plugins_py, plugin_module) =
             Self::find_plugins_py_via_entry_points(package_path, package_name_full, venv_path)?;
         logger::info(&format!("Found plugins.py at: {:?}", plugins_py));
 
         // Phase 1: Extract plugins with constructor_args
-        let extractor = extractor::PluginExtractor::new(plugins_py.clone())
-            .map_err(|e| anyhow!("Failed to create extractor: {}", e))?;
+        let package_root = plugins_py
+            .parent()
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| package_path.to_path_buf());
+        let extractor = extractor::PluginExtractor::new(
+            plugins_py.clone(),
+            plugin_module.clone(),
+            package_root.clone(),
+        )
+        .map_err(|e| anyhow!("Failed to create extractor: {}", e))?;
 
         let mut plugins = extractor
             .extract_plugins()
@@ -58,10 +66,6 @@ impl AstDiscovery {
         ));
 
         // Phase 2: Resolve all class/function references
-        let package_root = plugins_py
-            .parent()
-            .map(|p| p.to_path_buf())
-            .unwrap_or_else(|| package_path.to_path_buf());
         for plugin in &mut plugins {
             extractor
                 .resolve_references(plugin, &package_root, package_name_full)
@@ -96,7 +100,7 @@ impl AstDiscovery {
         package_path: &Path,
         package_name_full: &str,
         venv_path: Option<&str>,
-    ) -> Result<std::path::PathBuf> {
+    ) -> Result<(std::path::PathBuf, String)> {
         use std::fs;
         // Try to find entry_points.txt in the package's dist-info
         let entry_points_path =
@@ -113,13 +117,13 @@ impl AstDiscovery {
         // Try to locate the actual file
         let plugins_path = package_path.join(&relative_path);
         if plugins_path.exists() {
-            return Ok(plugins_path);
+            return Ok((plugins_path, module_path));
         }
         // Try one level up (in case package_path is the package root)
         if let Some(parent) = package_path.parent() {
             let plugins_path = parent.join(&relative_path);
             if plugins_path.exists() {
-                return Ok(plugins_path);
+                return Ok((plugins_path, module_path));
             }
         }
         Err(anyhow!(
@@ -396,78 +400,49 @@ reeds = r2x_reeds.plugins:register_plugin
     }
     #[test]
     fn test_plugin_extraction() {
-        use r2x_manifest::ConstructorArg;
+        use r2x_manifest::{IOContract, IOSlot, ImplementationType, InvocationSpec, PluginKind};
 
-        let plugin = DiscoveryPlugin {
+        let plugin = PluginSpec {
             name: "test-parser".to_string(),
-            plugin_type: "ParserPlugin".to_string(),
-            constructor_args: vec![
-                ConstructorArg {
-                    name: "name".to_string(),
-                    value: "test-parser".to_string(),
-                    arg_type: "string".to_string(),
-                },
-                ConstructorArg {
-                    name: "obj".to_string(),
-                    value: "TestParser".to_string(),
-                    arg_type: "class_reference".to_string(),
-                },
-            ],
-            resolved_references: vec![],
-            decorators: vec![],
+            kind: PluginKind::Parser,
+            entry: "TestParser".to_string(),
+            invocation: InvocationSpec {
+                implementation: ImplementationType::Class,
+                method: Some("build_system".to_string()),
+                constructor: vec![],
+                call: vec![],
+            },
+            io: IOContract {
+                consumes: vec![IOSlot::StoreFolder, IOSlot::ConfigFile],
+                produces: vec![IOSlot::System],
+            },
+            resources: None,
+            upgrade: None,
+            description: None,
+            tags: vec![],
         };
 
         assert_eq!(plugin.name, "test-parser");
-        assert_eq!(plugin.plugin_type, "ParserPlugin");
-        assert_eq!(plugin.constructor_args.len(), 2);
+        assert_eq!(plugin.kind, PluginKind::Parser);
+        assert_eq!(plugin.entry, "TestParser");
     }
     #[test]
     fn test_discover_plugins_integration() {
         let temp_dir = TempDir::new().unwrap();
         let plugins_file = temp_dir.path().join("plugins.py");
-        // Create a minimal valid plugins.py file
         let content = r#"
-from r2x_core.package import Package
-def register_plugin() -> Package:
-    return Package(
-        name="r2x-test",
-        plugins=[
-            ParserPlugin(
-                name="test-parser",
-                obj=TestParser,
-                config=TestConfig,
-                call_method="parse",
-                io_type=IOType.STDOUT,
-            ),
-        ]
+from r2x_core import PluginManifest, PluginSpec
+
+manifest = PluginManifest(package="r2x-test")
+manifest.add(
+    PluginSpec.parser(
+        name="test.parser",
+        entry=TestParser,
+        config=TestConfig,
     )
+)
 "#;
         fs::write(&plugins_file, content).unwrap();
-        // This test will fail without proper entry_points.txt setup
-        // Just verify the file was created
         assert!(plugins_file.exists());
-    }
-    #[test]
-    fn test_resolved_references() {
-        use r2x_manifest::types::{ParameterEntry, ResolvedReference};
-
-        let resolved_ref = ResolvedReference {
-            key: "TestParser".to_string(),
-            ref_type: "class".to_string(),
-            module: "test.module".to_string(),
-            name: "TestParser".to_string(),
-            source_file: Some("test/module.py".to_string()),
-            parameters: vec![ParameterEntry {
-                name: "config".to_string(),
-                annotation: Some("TestConfig".to_string()),
-                default: None,
-                is_required: true,
-            }],
-            return_annotation: None,
-        };
-
-        assert_eq!(resolved_ref.ref_type, "class");
-        assert_eq!(resolved_ref.module, "test.module");
-        assert_eq!(resolved_ref.parameters.len(), 1);
     }
 }

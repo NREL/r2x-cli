@@ -1,10 +1,47 @@
 use super::*;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum KwArgRole {
+    Name,
+    EntryReference,
+    Method,
+    Description,
+    Config,
+    Store,
+    IoType,
+    Other,
+}
+
+impl KwArgRole {
+    pub fn from_identifier(name: &str) -> Self {
+        match name {
+            "name" => KwArgRole::Name,
+            "obj" | "callable" | "target" | "function" | "factory" | "entry" => {
+                KwArgRole::EntryReference
+            }
+            "call_method" | "method" | "call_function" => KwArgRole::Method,
+            "description" => KwArgRole::Description,
+            "config" => KwArgRole::Config,
+            "store" => KwArgRole::Store,
+            "io_type" => KwArgRole::IoType,
+            _ => KwArgRole::Other,
+        }
+    }
+}
+
+pub(super) struct KwArg {
+    pub name: String,
+    pub value: String,
+    #[allow(dead_code)]
+    pub arg_type: String,
+    pub role: KwArgRole,
+}
+
 impl PluginExtractor {
     pub(super) fn extract_keyword_arguments_from_text(
         &self,
         call_text: &str,
-    ) -> Result<Vec<ConstructorArg>> {
+    ) -> Result<Vec<KwArg>> {
         let mut args = Vec::new();
 
         if let Some(start) = call_text.find('(') {
@@ -29,43 +66,15 @@ impl PluginExtractor {
                             value_str.to_string()
                         };
 
-                        args.push(ConstructorArg {
+                        args.push(KwArg {
                             name: key.clone(),
                             value: value.clone(),
                             arg_type: arg_type.clone(),
+                            role: KwArgRole::from_identifier(&key),
                         });
 
                         debug!("Extracted arg: {} = {} (type: {})", key, value, arg_type);
                     }
-                }
-            }
-        }
-
-        Ok(args)
-    }
-
-    #[allow(dead_code)]
-    pub(super) fn extract_keyword_arguments<'r, D: ast_grep_core::Doc>(
-        &self,
-        call_node: &ast_grep_core::Node<'r, D>,
-    ) -> Result<Vec<ConstructorArg>> {
-        let mut args = Vec::new();
-
-        for arg_match in call_node.find_all("$_") {
-            let arg_text = arg_match.text();
-            if arg_text.contains('=') && !arg_text.contains('(') {
-                if let Some(eq_idx) = arg_text.find('=') {
-                    let param_name = arg_text[..eq_idx].trim().to_string();
-                    let param_value = arg_text[eq_idx + 1..].trim().to_string();
-                    let arg_type = self.infer_argument_type(&param_value);
-
-                    args.push(ConstructorArg {
-                        name: param_name,
-                        value: param_value,
-                        arg_type,
-                    });
-
-                    debug!("Extracted kwarg via ast-grep");
                 }
             }
         }
@@ -113,7 +122,7 @@ impl PluginExtractor {
         "identifier".to_string()
     }
 
-    pub(super) fn find_kwarg_value(&self, kwargs: &[ConstructorArg], name: &str) -> Result<String> {
+    pub(super) fn find_kwarg_value(&self, kwargs: &[KwArg], name: &str) -> Result<String> {
         kwargs
             .iter()
             .find(|arg| arg.name == name)

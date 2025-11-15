@@ -21,33 +21,19 @@ pub fn list_plugins(_opts: &GlobalOpts) -> Result<(), String> {
         return Ok(());
     }
 
-    let mut packages: BTreeMap<String, BTreeMap<String, Vec<String>>> = BTreeMap::new();
+    let mut packages: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for pkg in &manifest.packages {
-        for plugin in &pkg.plugins {
-            packages
-                .entry(pkg.name.clone())
-                .or_default()
-                .entry(plugin.plugin_type.clone())
-                .or_default()
-                .push(plugin.name.clone());
-        }
+        let mut names: Vec<String> = pkg.plugins.iter().map(|p| p.name.clone()).collect();
+        names.sort();
+        packages.insert(pkg.name.clone(), names);
     }
 
     if has_plugins {
         println!("{}", "Plugins:".bold().green());
-        for (package_name, types) in &packages {
-            let total_plugins: usize = types.values().map(|v| v.len()).sum();
-            println!(
-                " {} {}:",
-                package_name.bold().blue(),
-                format!("(total plugins: {})", total_plugins).dimmed()
-            );
-
-            for (type_name, plugin_names) in types {
-                println!("    {}:", type_name);
-                for plugin_name in plugin_names {
-                    println!("      - {}", plugin_name);
-                }
+        for (package_name, plugin_names) in &packages {
+            println!(" {}:", package_name.bold().blue());
+            for plugin_name in plugin_names {
+                println!("    - {}", plugin_name);
             }
             println!();
         }

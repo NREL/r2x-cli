@@ -1,15 +1,17 @@
 use super::*;
 use std::collections::HashMap;
 use std::fs;
-use std::io::Write;
-use tempfile::{NamedTempFile, TempDir};
+use tempfile::TempDir;
 
 #[test]
 fn test_infer_argument_type_string() {
     let extractor = PluginExtractor {
         python_file_path: PathBuf::from("test.py"),
+        package_root: PathBuf::from("."),
+        package_prefix: "test".to_string(),
         content: "def register_plugin(): pass".to_string(),
         import_map: HashMap::new(),
+        current_module: "test.module".to_string(),
     };
 
     assert_eq!(extractor.infer_argument_type(r#""hello""#), "string");
@@ -20,8 +22,11 @@ fn test_infer_argument_type_string() {
 fn test_infer_argument_type_number() {
     let extractor = PluginExtractor {
         python_file_path: PathBuf::from("test.py"),
+        package_root: PathBuf::from("."),
+        package_prefix: "test".to_string(),
         content: "def register_plugin(): pass".to_string(),
         import_map: HashMap::new(),
+        current_module: "test.module".to_string(),
     };
 
     assert_eq!(extractor.infer_argument_type("42"), "number");
@@ -32,8 +37,11 @@ fn test_infer_argument_type_number() {
 fn test_infer_argument_type_enum() {
     let extractor = PluginExtractor {
         python_file_path: PathBuf::from("test.py"),
+        package_root: PathBuf::from("."),
+        package_prefix: "test".to_string(),
         content: "def register_plugin(): pass".to_string(),
         import_map: HashMap::new(),
+        current_module: "test.module".to_string(),
     };
 
     assert_eq!(extractor.infer_argument_type("IOType.STDOUT"), "enum_value");
@@ -43,8 +51,11 @@ fn test_infer_argument_type_enum() {
 fn test_infer_argument_type_class() {
     let extractor = PluginExtractor {
         python_file_path: PathBuf::from("test.py"),
+        package_root: PathBuf::from("."),
+        package_prefix: "test".to_string(),
         content: "def register_plugin(): pass".to_string(),
         import_map: HashMap::new(),
+        current_module: "test.module".to_string(),
     };
 
     assert_eq!(
@@ -55,9 +66,21 @@ fn test_infer_argument_type_class() {
 }
 
 #[test]
-fn test_extract_from_real_file_with_dynamic_types() -> Result<()> {
+fn test_extract_plugins_from_package_constructor_style() -> Result<()> {
     let content = r#"
-from r2x_core.package import Package
+from r2x_core import Package, ParserPlugin, UpgraderPlugin, BasePlugin
+
+class ReEDSConfig: ...
+
+class ReEDSParser:
+    def __init__(self, config, path: str, data_store=None):
+        pass
+
+class ReEDSUpgrader:
+    def __init__(self, path: str, steps=None):
+        pass
+
+def add_pcm_defaults(system): ...
 
 def register_plugin() -> Package:
     return Package(
@@ -66,151 +89,82 @@ def register_plugin() -> Package:
             ParserPlugin(
                 name="reeds-parser",
                 obj=ReEDSParser,
-                config=ReEDSConfig,
                 call_method="build_system",
-                io_type=IOType.STDOUT,
+                config=ReEDSConfig,
             ),
-            CustomUpgrader(
-                name="custom-upgrader",
-                obj=CustomClass,
-            ),
-        ]
-    )
-"#;
-
-    let mut temp_file = NamedTempFile::new()?;
-    temp_file.write_all(content.as_bytes())?;
-    temp_file.flush()?;
-
-    let extractor = PluginExtractor::new(temp_file.path().to_path_buf())?;
-    let plugins = extractor.extract_plugins()?;
-
-    assert!(plugins.len() >= 1);
-
-    Ok(())
-}
-
-#[test]
-fn test_resolve_references_across_files() -> Result<()> {
-    let temp_dir = TempDir::new()?;
-    let package_root = temp_dir.path().join("src").join("r2x_reeds");
-    fs::create_dir_all(&package_root)?;
-
-    let plugins_py = package_root.join("plugins.py");
-    let upgrader_py = package_root.join("upgrader.py");
-
-    let plugins_content = r#"
-def register_plugin():
-    from .upgrader import ReEDSUpgrader
-
-    return Package(
-        name="r2x-reeds",
-        plugins=[
             UpgraderPlugin(
                 name="reeds-upgrader",
                 obj=ReEDSUpgrader,
             ),
-        ],
-    )
-"#;
-    fs::write(&plugins_py, plugins_content)?;
-
-    let upgrader_content = r#"
-class ReEDSUpgrader:
-    def __init__(self, source_path: str, dry_run: bool = False):
-        self.source_path = source_path
-        self.dry_run = dry_run
-"#;
-    fs::write(&upgrader_py, upgrader_content)?;
-
-    let extractor = PluginExtractor::new(plugins_py.clone())?;
-    assert!(extractor.import_map.contains_key("ReEDSUpgrader"));
-    let mut plugins = extractor.extract_plugins()?;
-    assert_eq!(plugins.len(), 1);
-
-    extractor.resolve_references(&mut plugins[0], package_root.as_path(), "r2x-reeds")?;
-
-    assert_eq!(plugins[0].resolved_references.len(), 1);
-    let resolved = &plugins[0].resolved_references[0];
-    assert_eq!(resolved.name, "ReEDSUpgrader");
-    assert_eq!(resolved.module, "r2x_reeds.upgrader");
-    assert_eq!(resolved.ref_type, "class");
-    assert_eq!(resolved.parameters.len(), 2);
-    assert_eq!(resolved.parameters[0].name, "source_path");
-    assert!(resolved
-        .source_file
-        .as_ref()
-        .map(|path| path.ends_with("upgrader.py"))
-        .unwrap_or(false));
-
-    Ok(())
-}
-
-#[test]
-fn test_resolve_references_nested_module_path() -> Result<()> {
-    let temp_dir = TempDir::new()?;
-    let package_root = temp_dir.path().join("src").join("pkg_name");
-    let nested_dir = package_root.join("upgrader");
-    fs::create_dir_all(&nested_dir)?;
-
-    let plugins_py = package_root.join("plugins.py");
-    let plugins_content = r#"
-def register_plugin():
-    from pkg_name.upgrader.data_upgrader import NestedUpgrader
-
-    return Package(
-        name="pkg-name",
-        plugins=[
-            UpgraderPlugin(
-                name="nested-upgrader",
-                obj=NestedUpgrader,
+            BasePlugin(
+                name="add-pcm-defaults",
+                obj=add_pcm_defaults,
             ),
         ],
     )
 "#;
-    fs::write(&plugins_py, plugins_content)?;
 
-    let nested_content = r#"
-class NestedUpgrader(PluginUpgrader):
-    def __init__(self, level: int):
-        self.level = level
-"#;
-    let nested_file = nested_dir.join("data_upgrader.py");
-    fs::write(&nested_file, nested_content)?;
+    let temp_dir = TempDir::new()?;
+    let pkg_root = temp_dir.path().join("r2x_reeds");
+    fs::create_dir_all(&pkg_root)?;
+    let plugin_file = pkg_root.join("plugin.py");
+    fs::write(&plugin_file, content)?;
 
-    let extractor = PluginExtractor::new(plugins_py.clone())?;
-    let mut plugins = extractor.extract_plugins()?;
-    assert_eq!(plugins.len(), 1);
+    let extractor = PluginExtractor::new(
+        plugin_file,
+        "r2x_reeds.plugin".to_string(),
+        pkg_root.clone(),
+    )?;
+    let plugins = extractor.extract_plugins()?;
 
-    extractor.resolve_references(&mut plugins[0], package_root.as_path(), "pkg-name")?;
-
-    assert_eq!(plugins[0].resolved_references.len(), 1);
-    let resolved = &plugins[0].resolved_references[0];
-    assert_eq!(resolved.module, "pkg_name.upgrader.data_upgrader");
+    assert_eq!(plugins.len(), 3);
+    assert_eq!(plugins[0].name, "reeds-parser");
+    assert_eq!(plugins[0].entry, "r2x_reeds.plugin.ReEDSParser");
+    assert_eq!(plugins[0].kind, PluginKind::Parser);
+    assert_eq!(
+        plugins[0].invocation.method.as_deref(),
+        Some("build_system")
+    );
+    assert!(!plugins[0].invocation.constructor.is_empty());
+    assert_eq!(plugins[1].kind, PluginKind::Upgrader);
+    assert_eq!(
+        plugins[2].invocation.implementation,
+        ImplementationType::Function
+    );
 
     Ok(())
 }
 
 #[test]
-fn test_extract_class_parameters_from_multiline_init() -> Result<()> {
+fn test_extract_plugins_from_manifest_add_style() -> Result<()> {
     let content = r#"
-class SampleUpgrader(PluginUpgrader):
-    def __init__(
-        self,
-        path: Path | str,
-        steps: list[UpgradeStep] | None = None,
-        **kwargs: Any,
-    ) -> None:
-        pass
+from r2x_core import PluginManifest, PluginSpec
+
+class DemoParser:
+    def __init__(self, config, json_path: str):
+        self.config = config
+
+manifest = PluginManifest(package="demo")
+
+manifest.add(PluginSpec.parser(name="demo.parser", entry=DemoParser))
 "#;
 
-    let extractor = PluginExtractor {
-        python_file_path: PathBuf::from("test.py"),
-        content: content.to_string(),
-        import_map: HashMap::new(),
-    };
+    let temp_dir = TempDir::new()?;
+    let pkg_root = temp_dir.path().join("demo");
+    fs::create_dir_all(&pkg_root)?;
+    let plugin_file = pkg_root.join("plugin.py");
+    fs::write(&plugin_file, content)?;
 
-    let params = extractor.extract_class_parameters_from_content(content, "SampleUpgrader")?;
-    assert!(params.iter().any(|p| p.name == "path"));
+    let extractor =
+        PluginExtractor::new(plugin_file, "demo.plugin".to_string(), pkg_root.clone())?;
+    let plugins = extractor.extract_plugins()?;
+
+    assert_eq!(plugins.len(), 1);
+    assert_eq!(plugins[0].name, "demo.parser");
+    assert_eq!(plugins[0].entry, "demo.plugin.DemoParser");
+    assert_eq!(plugins[0].kind, PluginKind::Parser);
+    assert_eq!(plugins[0].invocation.implementation, ImplementationType::Class);
+    assert!(!plugins[0].invocation.constructor.is_empty());
+
     Ok(())
 }
