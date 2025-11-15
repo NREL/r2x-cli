@@ -25,12 +25,18 @@ pub fn build_runtime_bindings(plugin: &PluginSpec) -> RuntimeBindings {
         ImplementationType::Function => plugin.invocation.call.clone(),
     };
 
+    let call_method = plugin
+        .invocation
+        .method
+        .clone()
+        .or_else(|| default_method_for_kind(&plugin.kind));
+
     RuntimeBindings {
         entry_module,
         entry_name,
         implementation_type: plugin.invocation.implementation.clone(),
         config: plugin.resources.as_ref().and_then(|r| r.config.clone()),
-        call_method: plugin.invocation.method.clone(),
+        call_method,
         requires_store,
         entry_parameters,
     }
@@ -41,5 +47,14 @@ fn parse_entry_point(entry: &str) -> (String, String) {
         (entry[..pos].to_string(), entry[pos + 1..].to_string())
     } else {
         (String::new(), entry.to_string())
+    }
+}
+
+fn default_method_for_kind(kind: &crate::types::PluginKind) -> Option<String> {
+    use crate::types::PluginKind::*;
+    match kind {
+        Parser => Some("build_system".to_string()),
+        Exporter => Some("export".to_string()),
+        _ => None,
     }
 }
