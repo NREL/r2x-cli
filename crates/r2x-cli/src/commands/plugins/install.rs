@@ -240,10 +240,10 @@ fn run_pip_install(
 
 fn print_install_summary(pkg: &str, version: &str, count: usize, elapsed: std::time::Duration) {
     let elapsed_ms = elapsed.as_millis();
-    println!(
-        "{}",
-        format!("Installed {} entry point(s) in {}ms", count, elapsed_ms).dimmed()
-    );
+    logger::debug(&format!(
+        "Installed {} entry point(s) in {}ms",
+        count, elapsed_ms
+    ));
     let disp = if version.is_empty() {
         format!("{}", pkg.bold())
     } else {

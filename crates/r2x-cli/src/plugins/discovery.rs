@@ -92,8 +92,8 @@ pub fn discover_and_register_entry_points_with_deps(
         return Ok(0);
     }
 
-    logger::info(&format!(
-        "Found {} plugin(s) in package '{}'",
+    logger::debug(&format!(
+        "Registered {} plugin(s) from package '{}'",
         total_plugins, package
     ));
 

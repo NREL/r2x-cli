@@ -37,12 +37,12 @@ impl AstDiscovery {
         _package_version: Option<&str>,
     ) -> Result<(Vec<PluginSpec>, Vec<DecoratorRegistration>)> {
         let start_time = std::time::Instant::now();
-        logger::info(&format!("AST discovery started for: {}", package_name_full));
+        logger::debug(&format!("AST discovery started for: {}", package_name_full));
 
         // Find the plugins.py file using entry_points.txt
         let (plugins_py, plugin_module) =
             Self::find_plugins_py_via_entry_points(package_path, package_name_full, venv_path)?;
-        logger::info(&format!("Found plugins.py at: {:?}", plugins_py));
+        logger::debug(&format!("Found plugins.py at: {:?}", plugins_py));
 
         // Phase 1: Extract plugins with constructor_args
         let package_root = plugins_py
@@ -60,8 +60,8 @@ impl AstDiscovery {
             .extract_plugins()
             .map_err(|e| anyhow!("Failed to extract plugins: {}", e))?;
 
-        logger::info(&format!(
-            "Phase 1 complete: Extracted {} plugins",
+        logger::debug(&format!(
+            "Extracted {} plugins from register_plugin",
             plugins.len()
         ));
 
@@ -72,15 +72,12 @@ impl AstDiscovery {
                 .map_err(|e| anyhow!("Failed to resolve references for {}: {}", plugin.name, e))?;
         }
 
-        logger::info(&format!(
-            "Phase 2 complete: Resolved references for {} plugins",
-            plugins.len()
-        ));
+        logger::debug("Resolved class/function references for extracted plugins");
 
         // Phase 3: Scan for decorator registrations and associate with plugins
         let decorator_registrations = Self::scan_package_for_decorators(&plugins_py)?;
-        logger::info(&format!(
-            "Phase 3 complete: Found {} decorator registrations",
+        logger::debug(&format!(
+            "Found {} decorator registrations",
             decorator_registrations.len()
         ));
 
