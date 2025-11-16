@@ -34,10 +34,10 @@ enum Commands {
         action: CacheAction,
     },
     /// Configure r2x tool
-    #[command(subcommand_required = true, arg_required_else_help = true)]
+    #[command(subcommand_required = false, arg_required_else_help = false)]
     Config {
         #[command(subcommand)]
-        action: ConfigAction,
+        action: Option<ConfigAction>,
     },
     /// List installed plugins
     List,

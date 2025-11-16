@@ -3,24 +3,43 @@ use crate::logger;
 use crate::GlobalOpts;
 use clap::Subcommand;
 use colored::*;
+use std::io::{self, Write};
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ConfigAction {
+    /// Display the current configuration values.
     Show,
+    /// Update a configuration key (e.g. `r2x config set default-python-version 3.13`).
     Set {
         key: String,
         value: String,
     },
-    /// Get or set the path to the config file.
-    /// If `new_path` is provided, the CLI will set the config path to that value.
-    /// If omitted, the CLI will print the current configuration file path.
+    /// Show the config path or set it when `new_path` is provided.
     Path {
         /// Optional new config path to set
         new_path: Option<String>,
     },
+    /// Reset configuration back to defaults.
+    Reset {
+        /// Skip confirmation prompt
+        #[arg(short = 'y', long = "yes")]
+        yes: bool,
+    },
 }
 
-pub fn handle_config(action: ConfigAction, opts: GlobalOpts) {
+pub fn handle_config(action: Option<ConfigAction>, opts: GlobalOpts) {
+    let action = match action {
+        Some(action) => action,
+        None => {
+            println!(
+                "{}",
+                "Tip: run `r2x config show` to inspect settings or `r2x config set <key> <value>` to update them."
+                    .dimmed()
+            );
+            return;
+        }
+    };
+
     match action {
         ConfigAction::Show => match Config::load() {
             Ok(config) => {
@@ -56,6 +75,11 @@ pub fn handle_config(action: ConfigAction, opts: GlobalOpts) {
                             logger::error(&format!("Failed to save config: {}", e));
                         }
                     }
+                    println!(
+                        "{}",
+                        "Tip: run `r2x config show` to confirm the updated value."
+                            .dimmed()
+                    );
                 } else {
                     logger::error(&format!(
                         "Unknown config key: {}. Currently supported keys: cache-path, verbosity, default-python-version, r2x-core-version",
@@ -117,6 +141,51 @@ pub fn handle_config(action: ConfigAction, opts: GlobalOpts) {
                 }
             }
         }
+        ConfigAction::Reset { yes } => {
+            let config_path = Config::path();
+            if !yes {
+                print!(
+                    "{} Reset R2X configuration at `{}` to default settings? {} ",
+                    "?".bold().cyan(),
+                    config_path.display(),
+                    "[y/n] ›".dimmed()
+                );
+                if let Err(e) = io::stdout().flush() {
+                    logger::error(&format!("Failed to flush stdout: {}", e));
+                    return;
+                }
+                let mut input = String::new();
+                match io::stdin().read_line(&mut input) {
+                    Ok(_) => {
+                        let response = input.trim().to_lowercase();
+                        if response != "y" && response != "yes" {
+                            println!("{}", "Reset cancelled.".yellow());
+                            return;
+                        }
+                    }
+                    Err(e) => {
+                        logger::error(&format!("Failed to read confirmation: {}", e));
+                        return;
+                    }
+                }
+            }
+
+            if opts.verbosity_level() > 0 {
+                logger::step("Resetting configuration to defaults");
+            }
+            match Config::reset() {
+                Ok(_) => {
+                    println!(
+                        "{} configuration {} has been reset to default settings.",
+                        "\u{2714}".green().bold(),
+                        config_path.display()
+                    );
+                }
+                Err(e) => {
+                    logger::error(&format!("Failed to reset config: {}", e));
+                }
+            }
+        }
     }
 }
 
@@ -150,16 +219,16 @@ mod tests {
 
     #[test]
     fn test_config_show() {
-        handle_config(ConfigAction::Show, normal_opts());
+        handle_config(Some(ConfigAction::Show), normal_opts());
     }
 
     #[test]
     fn test_config_set() {
         handle_config(
-            ConfigAction::Set {
+            Some(ConfigAction::Set {
                 key: "cache-path".to_string(),
                 value: "test-value".to_string(),
-            },
+            }),
             normal_opts(),
         );
     }
@@ -167,10 +236,10 @@ mod tests {
     #[test]
     fn test_config_set_quiet() {
         handle_config(
-            ConfigAction::Set {
+            Some(ConfigAction::Set {
                 key: "cache-path".to_string(),
                 value: "test-value".to_string(),
-            },
+            }),
             quiet_opts(),
         );
     }
@@ -178,11 +247,24 @@ mod tests {
     #[test]
     fn test_config_set_verbose() {
         handle_config(
-            ConfigAction::Set {
+            Some(ConfigAction::Set {
                 key: "cache-path".to_string(),
                 value: "test-value".to_string(),
-            },
+            }),
             verbose_opts(),
         );
+    }
+
+    #[test]
+    fn test_config_reset() {
+        handle_config(
+            Some(ConfigAction::Reset { yes: true }),
+            normal_opts(),
+        );
+    }
+
+    #[test]
+    fn test_config_no_action_tip() {
+        handle_config(None, normal_opts());
     }
 }
