@@ -139,6 +139,18 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
             echo "$HOME/.cargo/bin" >> $GITHUB_PATH
           fi
+      - name: Setup Python 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Set PYO3_PYTHON (unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: echo "PYO3_PYTHON=$pythonLocation/bin/python" >> $GITHUB_ENV
+      - name: Set PYO3_PYTHON (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: echo "PYO3_PYTHON=$env:pythonLocation\\python.exe" >> $GITHUB_ENV
       - name: Install dist
         run: ${{ matrix.install_dist.run }}
       # Get the dist-manifest
