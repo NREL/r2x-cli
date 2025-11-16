@@ -132,6 +132,20 @@ impl Config {
         values
     }
 
+    pub fn reset() -> Result<(), Box<dyn std::error::Error>> {
+        let path = Self::path();
+        if path.exists() {
+            fs::remove_file(&path)?;
+        }
+        if let Some(parent) = path.parent() {
+            let pointer = parent.join(".r2x_config_path");
+            if pointer.exists() {
+                fs::remove_file(pointer)?;
+            }
+        }
+        Ok(())
+    }
+
     pub fn get_cache_path(&self) -> String {
         self.cache_path.clone().unwrap_or_else(|| {
             #[cfg(not(target_os = "windows"))]
