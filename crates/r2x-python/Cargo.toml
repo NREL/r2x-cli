@@ -8,6 +8,7 @@ license = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
 rust-version = { workspace = true }
+build = "build.rs"
 
 description = "Python bridge for the r2x CLI"
 
@@ -20,3 +21,4 @@ thiserror = "2.0"
 r2x-config = { workspace = true }
 r2x-logger = { workspace = true }
 r2x-manifest = { workspace = true }
+which = "6.0"

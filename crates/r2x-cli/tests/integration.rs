@@ -4,10 +4,10 @@ use assert_cmd::{cargo::cargo_bin_cmd, Command};
 use predicates::prelude::*;
 use std::fs;
 use std::io;
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::process::Command as StdCommand;
 use tempfile::TempDir;
+use which::which;
 
 #[cfg(unix)]
 const EXECUTABLE_NAME: &str = "r2x";
@@ -127,25 +127,17 @@ impl PipelineHarness {
         fs::create_dir_all(&cache_dir)?;
 
         let venv_path = config_dir.join(".venv");
-        let site_packages = venv_path.join("lib/python3.12/site-packages");
+        create_real_venv(&venv_path)?;
+        let site_packages = default_site_packages_path(&venv_path);
         fs::create_dir_all(&site_packages)?;
 
         let config_path = config_dir.join("r2x.toml");
-        let fake_uv = config_dir.join("uv");
-        fs::write(&fake_uv, "#!/bin/sh\nexit 0\n")?;
-        #[cfg(unix)]
-        {
-            let mut perms = fs::metadata(&fake_uv)?.permissions();
-            perms.set_mode(0o755);
-            fs::set_permissions(&fake_uv, perms)?;
-        }
 
         fs::write(
             &config_path,
             format!(
-                "cache_path = \"{}\"\nuv_path = \"{}\"\nvenv_path = \"{}\"\n",
+                "cache_path = \"{}\"\nvenv_path = \"{}\"\n",
                 cache_dir.to_string_lossy(),
-                fake_uv.to_string_lossy(),
                 venv_path.to_string_lossy()
             ),
         )?;
@@ -215,6 +207,60 @@ impl PipelineHarness {
     }
 }
 
+fn create_real_venv(venv_path: &Path) -> io::Result<()> {
+    if venv_path.exists() {
+        fs::remove_dir_all(venv_path)?;
+    }
+    if let Some(uv) = find_tool(&["uv"]) {
+        let status = StdCommand::new(uv)
+            .arg("venv")
+            .arg(venv_path)
+            .arg("--python")
+            .arg("3.12")
+            .status()?;
+        if status.success() {
+            return Ok(());
+        }
+    }
+
+    if let Some(py) = find_tool(&["python3", "python"]) {
+        let status = StdCommand::new(py)
+            .arg("-m")
+            .arg("venv")
+            .arg(venv_path)
+            .status()?;
+        if status.success() {
+            return Ok(());
+        }
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::Other,
+        "failed to create test venv (uv/python not available)",
+    ))
+}
+
+fn find_tool(candidates: &[&str]) -> Option<String> {
+    for name in candidates {
+        if let Ok(path) = which(name) {
+            return Some(path.to_string_lossy().to_string());
+        }
+    }
+    None
+}
+
+#[cfg(not(target_os = "windows"))]
+fn default_site_packages_path(venv_path: &Path) -> PathBuf {
+    venv_path
+        .join("lib")
+        .join("python3.12")
+        .join("site-packages")
+}
+
+#[cfg(target_os = "windows")]
+fn default_site_packages_path(venv_path: &Path) -> PathBuf {
+    venv_path.join("Lib").join("site-packages")
+}
 fn copy_python_stub(package: &str, site_packages: &Path) -> io::Result<()> {
     let src = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("tests")
