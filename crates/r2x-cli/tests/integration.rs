@@ -5,8 +5,9 @@ use predicates::prelude::*;
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
-use tempfile::TempDir;
 use std::process::Command as StdCommand;
+use tempfile::TempDir;
+use which::which;
 
 #[cfg(unix)]
 const EXECUTABLE_NAME: &str = "r2x";
@@ -210,19 +211,42 @@ fn create_real_venv(venv_path: &Path) -> io::Result<()> {
     if venv_path.exists() {
         fs::remove_dir_all(venv_path)?;
     }
-    let status = StdCommand::new("uv")
-        .arg("venv")
-        .arg(venv_path)
-        .arg("--python")
-        .arg("3.12")
-        .status()?;
-    if !status.success() {
-        return Err(io::Error::new(
-            io::ErrorKind::Other,
-            "uv venv failed for integration test harness",
-        ));
+    if let Some(uv) = find_tool(&["uv"]) {
+        let status = StdCommand::new(uv)
+            .arg("venv")
+            .arg(venv_path)
+            .arg("--python")
+            .arg("3.12")
+            .status()?;
+        if status.success() {
+            return Ok(());
+        }
     }
-    Ok(())
+
+    if let Some(py) = find_tool(&["python3", "python"]) {
+        let status = StdCommand::new(py)
+            .arg("-m")
+            .arg("venv")
+            .arg(venv_path)
+            .status()?;
+        if status.success() {
+            return Ok(());
+        }
+    }
+
+    Err(io::Error::new(
+        io::ErrorKind::Other,
+        "failed to create test venv (uv/python not available)",
+    ))
+}
+
+fn find_tool(candidates: &[&str]) -> Option<String> {
+    for name in candidates {
+        if let Ok(path) = which(name) {
+            return Some(path.to_string_lossy().to_string());
+        }
+    }
+    None
 }
 
 #[cfg(not(target_os = "windows"))]
