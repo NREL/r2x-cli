@@ -212,6 +212,18 @@ jobs:
       - name: Unzip Specific Python Shim
         run: tar -xzf python-shim-${{ env.TARGET_TRIPLE }}.tar.gz
 
+      - name: Set Shim Library Path
+        shell: bash
+        run: |
+          if [[ "${{ runner.os }}" == "Linux" ]]; then
+            echo "LIBRARY_PATH=$PWD/python-shim/${TARGET_TRIPLE}:$LIBRARY_PATH" >> $GITHUB_ENV
+            echo "LD_LIBRARY_PATH=$PWD/python-shim/${TARGET_TRIPLE}:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+          elif [[ "${{ runner.os }}" == "macOS" ]]; then
+            echo "DYLD_LIBRARY_PATH=$PWD/python-shim/${TARGET_TRIPLE}:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+          elif [[ "${{ runner.os }}" == "Windows" ]]; then
+            echo "PATH=$PWD/python-shim/${TARGET_TRIPLE};$PATH" >> $GITHUB_ENV
+          fi
+
       - name: Install uv & python
         uses: ./.github/actions/setup-uv-python
         with:
@@ -245,21 +257,21 @@ jobs:
 
 
 
-      #- name: Verify cdylibs in Bundle
-      #  shell: bash
-      #  run: |
-      #    # Set target triple from matrix
-      #    IFS=' ' read -r -a targets <<< "${{ join(matrix.targets, ' ') }}"
-      #    TARGET_TRIPLE="${targets[0]}"
-      #    TAR_FILE="r2x-${TARGET_TRIPLE}.tar.xz"
-      #    if tar -tf "target/distrib/${TAR_FILE}" | grep -q "libpython\|python.*\.dll"; then
-      #      echo "cdylibs verified in bundle for $TARGET_TRIPLE."
-      #    else
-      #      echo "Error: No Python cdylibs found in bundle!"
-      #      echo "Tar.xz contents:"
-      #      tar -tf "target/distrib/${TAR_FILE}"
-      #      exit 1
-      #    fi
+      - name: Verify cdylibs in Bundle
+        shell: bash
+        run: |
+          # Set target triple from matrix
+          IFS=' ' read -r -a targets <<< "${{ join(matrix.targets, ' ') }}"
+          TARGET_TRIPLE="${targets[0]}"
+          TAR_FILE="r2x-${TARGET_TRIPLE}.tar.xz"
+          echo "Tar.xz contents:"
+          tar -tf "target/distrib/${TAR_FILE}"
+          if tar -tf "target/distrib/${TAR_FILE}" | grep -q "libpython\|python.*\.dll"; then
+            echo "cdylibs verified in bundle for $TARGET_TRIPLE."
+          else
+            echo "Error: No Python cdylibs found in bundle!"
+            exit 1
+          fi
 
       - id: cargo-dist
         name: Post-build
