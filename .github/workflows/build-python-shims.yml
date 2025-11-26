@@ -74,7 +74,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}
+          path: python-shim/${{ env.TARGET_TRIPLE }}/*
 
   build-shim-macos-intel:
     needs: cache-check
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}
+          path: python-shim/${{ env.TARGET_TRIPLE }}/*
 
   build-shim-linux-x86:
     needs: cache-check
@@ -122,7 +122,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}
+          path: python-shim/${{ env.TARGET_TRIPLE }}/*
 
   build-shim-linux-arm:
     needs: cache-check
@@ -146,7 +146,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}
+          path: python-shim/${{ env.TARGET_TRIPLE }}/*
 
   build-shim-windows-x86:
     needs: cache-check
@@ -171,19 +171,38 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}
+          path: python-shim/${{ env.TARGET_TRIPLE }}/*
 
   aggregate-shims:
     needs: [cache-check, build-shim-macos-arm, build-shim-macos-intel, build-shim-linux-x86, build-shim-linux-arm, build-shim-windows-x86]
     if: needs.cache-check.outputs.cache-hit != 'true'  # Only run if we built
     runs-on: ubuntu-22.04
     steps:
-      - name: Download All Shim Artifacts
+      - name: Download macOS ARM Shim
         uses: actions/download-artifact@v4
         with:
-          pattern: python-shim-*
-          path: python-shim/
-          merge-multiple: true
+          name: python-shim-aarch64-apple-darwin
+          path: python-shim/aarch64-apple-darwin
+      - name: Download macOS Intel Shim
+        uses: actions/download-artifact@v4
+        with:
+          name: python-shim-x86_64-apple-darwin
+          path: python-shim/x86_64-apple-darwin
+      - name: Download Linux x86 Shim
+        uses: actions/download-artifact@v4
+        with:
+          name: python-shim-x86_64-unknown-linux-gnu
+          path: python-shim/x86_64-unknown-linux-gnu
+      - name: Download Linux ARM Shim
+        uses: actions/download-artifact@v4
+        with:
+          name: python-shim-aarch64-unknown-linux-gnu
+          path: python-shim/aarch64-unknown-linux-gnu
+      - name: Download Windows Shim
+        uses: actions/download-artifact@v4
+        with:
+          name: python-shim-x86_64-pc-windows-msvc
+          path: python-shim/x86_64-pc-windows-msvc
       - name: Zip Combined Shims
         run: zip -r python-shims-combined.zip python-shim/
       - name: Verify Shims in Zip
