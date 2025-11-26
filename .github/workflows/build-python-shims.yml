@@ -186,6 +186,25 @@ jobs:
           merge-multiple: true
       - name: Zip Combined Shims
         run: zip -r python-shims-combined.zip python-shim/
+      - name: Verify Shims in Zip
+        run: |
+          mkdir -p temp && unzip python-shims-combined.zip -d temp/
+          expected_files=(
+            "temp/python-shim/aarch64-apple-darwin/libpython3.12.dylib"
+            "temp/python-shim/x86_64-apple-darwin/libpython3.12.dylib"
+            "temp/python-shim/aarch64-unknown-linux-gnu/libpython3.12.so"
+            "temp/python-shim/x86_64-unknown-linux-gnu/libpython3.12.so"
+            "temp/python-shim/x86_64-pc-windows-msvc/python312.dll"
+          )
+          for file in "${expected_files[@]}"; do
+            if [[ ! -f "$file" ]]; then
+              echo "Error: Missing expected shim file $file"
+              ls -la temp/python-shim/ || echo "No shims directory"
+              exit 1
+            fi
+          done
+          echo "All expected shim files verified."
+          rm -rf temp
       - name: Save to Cache
         uses: actions/cache/save@v4
         with:

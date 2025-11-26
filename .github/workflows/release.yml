@@ -54,7 +54,7 @@ jobs:
     with:
       py-version: "3.12"
       checkout-ref: ${{ github.ref }}
-      force-rebuild: false  # Set to true for one-off rebuil
+      force-rebuild: true  # Force rebuild to debug
 
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
