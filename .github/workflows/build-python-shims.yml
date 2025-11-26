@@ -74,7 +74,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}/*
+          path: python-shim/${{ env.TARGET_TRIPLE }}
 
   build-shim-macos-intel:
     needs: cache-check
@@ -98,7 +98,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}/*
+          path: python-shim/${{ env.TARGET_TRIPLE }}
 
   build-shim-linux-x86:
     needs: cache-check
@@ -122,7 +122,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}/*
+          path: python-shim/${{ env.TARGET_TRIPLE }}
 
   build-shim-linux-arm:
     needs: cache-check
@@ -146,7 +146,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}/*
+          path: python-shim/${{ env.TARGET_TRIPLE }}
 
   build-shim-windows-x86:
     needs: cache-check
@@ -171,7 +171,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}/*
+          path: python-shim/${{ env.TARGET_TRIPLE }}
 
   aggregate-shims:
     needs: [cache-check, build-shim-macos-arm, build-shim-macos-intel, build-shim-linux-x86, build-shim-linux-arm, build-shim-windows-x86]
