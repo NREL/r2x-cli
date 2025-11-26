@@ -111,6 +111,7 @@ jobs:
       - name: Prepare shim
         run: PY_VERSION=${{ env.PY_VERSION }} TARGET_TRIPLE=${{ env.TARGET_TRIPLE }} ./scripts/prepare_python_shim.sh
       - name: Zip Shim
+        shell: bash
         run: zip -r python-shim-${{ env.TARGET_TRIPLE }}.zip python-shim/${{ env.TARGET_TRIPLE }}
       - uses: actions/upload-artifact@v4
         with:
@@ -136,6 +137,7 @@ jobs:
         shell: bash
         run: PY_VERSION=${{ env.PY_VERSION }} TARGET_TRIPLE=${{ env.TARGET_TRIPLE }} ./scripts/prepare_python_shim.sh
       - name: Zip Shim
+        shell: bash
         run: zip -r python-shim-${{ env.TARGET_TRIPLE }}.zip python-shim/${{ env.TARGET_TRIPLE }}
       - uses: actions/upload-artifact@v4
         with:
