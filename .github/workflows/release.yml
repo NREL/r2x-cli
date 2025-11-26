@@ -45,21 +45,59 @@ on:
       - '**[0-9]+.[0-9]+.[0-9]+*'
 
 jobs:
-  # Build python shims for each platform. (Cached)
-  # We need to have ALL cdylibs available at plan time.
-  # Otherwise cdylibs won't be bundled with the application.
-  build-and-aggregate-shims:
+  build-shim-macos-arm:
     if: ${{ !github.event.pull_request }}
-    uses: ./.github/workflows/build-python-shims.yml
-    with:
-      py-version: "3.12"
-      checkout-ref: ${{ github.ref }}
-      force-rebuild: true
+    runs-on: macos-14
+    steps:
+      - uses: ./.github/actions/build-python-shim
+        with:
+          target_triple: aarch64-apple-darwin
+          py_version: 3.12
+
+  build-shim-macos-intel:
+    if: ${{ !github.event.pull_request }}
+    runs-on: macos-13
+    steps:
+      - uses: ./.github/actions/build-python-shim
+        with:
+          target_triple: x86_64-apple-darwin
+          py_version: 3.12
+
+  build-shim-linux-x86:
+    if: ${{ !github.event.pull_request }}
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: ./.github/actions/build-python-shim
+        with:
+          target_triple: x86_64-unknown-linux-gnu
+          py_version: 3.12
+
+  build-shim-linux-arm:
+    if: ${{ !github.event.pull_request }}
+    runs-on: ubuntu-22.04-arm
+    steps:
+      - uses: ./.github/actions/build-python-shim
+        with:
+          target_triple: aarch64-unknown-linux-gnu
+          py_version: 3.12
+
+  build-shim-windows-x86:
+    if: ${{ !github.event.pull_request }}
+    runs-on: windows-latest
+    steps:
+      - uses: ./.github/actions/build-python-shim
+        with:
+          target_triple: x86_64-pc-windows-msvc
+          py_version: 3.12
 
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
     needs:
-      - build-and-aggregate-shims
+      - build-shim-macos-arm
+      - build-shim-macos-intel
+      - build-shim-linux-x86
+      - build-shim-linux-arm
+      - build-shim-windows-x86
     runs-on: "ubuntu-22.04"
     outputs:
       val: ${{ steps.plan.outputs.manifest }}
