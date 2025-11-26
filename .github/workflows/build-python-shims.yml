@@ -203,9 +203,9 @@ jobs:
         with:
           name: python-shim-x86_64-pc-windows-msvc
           path: python-shim/x86_64-pc-windows-msvc
-      - name: Zip Combined Shims
+      - name: Zip Combined Shims for Cache
         run: zip -r python-shims-combined.zip python-shim/
-      - name: Verify Shims in Zip
+      - name: Verify Shims in Combined Zip
         run: |
           mkdir -p temp && unzip python-shims-combined.zip -d temp/
           expected_files=(
@@ -224,7 +224,34 @@ jobs:
           done
           echo "All expected shim files verified."
           rm -rf temp
-      - name: Save to Cache
+      - name: Zip and Upload Separate Shim Artifacts
+        run: |
+          zip -r python-shims-aarch64-apple-darwin.zip python-shim/aarch64-apple-darwin
+          zip -r python-shims-x86_64-apple-darwin.zip python-shim/x86_64-apple-darwin
+          zip -r python-shims-aarch64-unknown-linux-gnu.zip python-shim/aarch64-unknown-linux-gnu
+          zip -r python-shims-x86_64-unknown-linux-gnu.zip python-shim/x86_64-unknown-linux-gnu
+          zip -r python-shims-x86_64-pc-windows-msvc.zip python-shim/x86_64-pc-windows-msvc
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-shims-aarch64-apple-darwin
+          path: python-shims-aarch64-apple-darwin.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-shims-x86_64-apple-darwin
+          path: python-shims-x86_64-apple-darwin.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-shims-aarch64-unknown-linux-gnu
+          path: python-shims-aarch64-unknown-linux-gnu.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-shims-x86_64-unknown-linux-gnu
+          path: python-shims-x86_64-unknown-linux-gnu.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-shims-x86_64-pc-windows-msvc
+          path: python-shims-x86_64-pc-windows-msvc.zip
+      - name: Save Combined to Cache
         uses: actions/cache/save@v4
         with:
           path: python-shims-combined.zip

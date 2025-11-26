@@ -54,7 +54,7 @@ jobs:
     with:
       py-version: "3.12"
       checkout-ref: ${{ github.ref }}
-      force-rebuild: false
+      force-rebuild: true
 
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
@@ -73,15 +73,6 @@ jobs:
         with:
           persist-credentials: false
           submodules: recursive
-
-      - name: Download Python Shims
-        uses: actions/download-artifact@v4
-        with:
-          name: python-shims-combined
-          path: .
-
-      - name: Unzip Python Shims
-        run: unzip python-shims-combined.zip
 
       - name: Install dist
         # we specify bash to get pipefail; it guards against the `curl` command
@@ -147,13 +138,20 @@ jobs:
           persist-credentials: false
           submodules: recursive
 
-      - name: Download Python Shims
+      - name: Set Target Triple
+        run: |
+          IFS=' ' read -r -a targets <<< "${{ join(matrix.targets, ' ') }}"
+          TARGET_TRIPLE="${targets[0]}"
+          echo "TARGET_TRIPLE=${TARGET_TRIPLE}" >> $GITHUB_ENV
+
+      - name: Download Specific Python Shim
         uses: actions/download-artifact@v4
         with:
-          name: python-shims-combined
+          name: python-shims-${TARGET_TRIPLE}
           path: .
-      - name: Unzip Python Shims
-        run: unzip python-shims-combined.zip
+
+      - name: Unzip Specific Python Shim
+        run: unzip python-shims-${TARGET_TRIPLE}.zip
 
       - name: Install uv & python
         uses: ./.github/actions/setup-uv-python
