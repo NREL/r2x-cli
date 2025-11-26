@@ -186,30 +186,22 @@ jobs:
           dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
           echo "dist ran successfully"
 
-      - name: Debug cdylib in tar.xz
-        run: |
-          TAR_FILE="r2x-${TARGET_TRIPLE}.tar.xz"
-          if tar -tf "target/distrib/${TAR_FILE}" | grep -q "libpython\|python.*\.dll"; then
-            echo "cdylib found in ${TAR_FILE}"
-          else
-            echo "cdylib NOT found in ${TAR_FILE}"
-            echo "Contents of python-shim/${TARGET_TRIPLE}/:"
-            ls -la "python-shim/${TARGET_TRIPLE}/" || echo "No shim directory"
-            echo "Tar.xz contents:"
-            tar -tf "target/distrib/${TAR_FILE}"
-          fi
 
-      - name: Verify cdylibs in Build Manifest
+
+      - name: Verify cdylibs in Bundle
         run: |
           # Set target triple from matrix
           IFS=' ' read -r -a targets <<< "${{ join(matrix.targets, ' ') }}"
           TARGET_TRIPLE="${targets[0]}"
-          if ! jq '.bundles[] | select(.kind == "installer" or .kind == "archive") | .files[] | select(.path | test("python-shim/.*/.*(dylib|so|dll)"))' dist-manifest.json | grep -q .; then
-            echo "Error: No Python cdylibs found in build manifest bundles!"
-            cat dist-manifest.json
+          TAR_FILE="r2x-${TARGET_TRIPLE}.tar.xz"
+          if tar -tf "target/distrib/${TAR_FILE}" | grep -q "libpython\|python.*\.dll"; then
+            echo "cdylibs verified in bundle for $TARGET_TRIPLE."
+          else
+            echo "Error: No Python cdylibs found in bundle!"
+            echo "Tar.xz contents:"
+            tar -tf "target/distrib/${TAR_FILE}"
             exit 1
           fi
-          echo "cdylibs verified in build manifest for $TARGET_TRIPLE."
 
       - id: cargo-dist
         name: Post-build
