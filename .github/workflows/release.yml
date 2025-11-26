@@ -54,7 +54,7 @@ jobs:
     with:
       py-version: "3.12"
       checkout-ref: ${{ github.ref }}
-      force-rebuild: true  # Force rebuild to debug
+      force-rebuild: false
 
   # Run 'dist plan' (or host) to determine what tasks we need to do
   plan:
@@ -111,14 +111,7 @@ jobs:
           name: artifacts-plan-dist-manifest
           path: plan-dist-manifest.json
 
-      - name: Verify cdylibs in Plan Manifest
-        run: |
-          if ! jq '.releases[0].bundles[] | select(.kind == "installer" or .kind == "archive") | .files[] | select(.path | test("python-shim/.*/.*(dylib|so|dll)"))' plan-dist-manifest.json | grep -q .; then
-            echo "Error: No Python cdylibs found in manifest bundles!"
-            cat plan-dist-manifest.json
-            exit 1
-          fi
-          echo "cdylibs verified in manifest."
+
 
   # Build and packages all the platform-specific things
   build-local-artifacts:
@@ -188,23 +181,17 @@ jobs:
           dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
           echo "dist ran successfully"
 
-      - name: Verify Python Shim Bundling
-        shell: bash
+      - name: Verify cdylibs in Build Manifest
         run: |
           # Set target triple from matrix
           IFS=' ' read -r -a targets <<< "${{ join(matrix.targets, ' ') }}"
           TARGET_TRIPLE="${targets[0]}"
-          SHIM_DIR="python-shim/$TARGET_TRIPLE"
-
-          echo "Contents of $SHIM_DIR:"
-          ls -l "$SHIM_DIR" || echo "Directory not found"
-
-          if ! find "$SHIM_DIR" -name "*python*" | grep -q .; then
-            echo "Error: No Python-related files found in $SHIM_DIR. Bundling failed!"
+          if ! jq '.bundles[] | select(.kind == "installer" or .kind == "archive") | .files[] | select(.path | test("python-shim/.*/.*(dylib|so|dll)"))' dist-manifest.json | grep -q .; then
+            echo "Error: No Python cdylibs found in build manifest bundles!"
+            cat dist-manifest.json
             exit 1
           fi
-
-          echo "Python shim library verified at $SHIM_LIB."
+          echo "cdylibs verified in build manifest for $TARGET_TRIPLE."
 
       - id: cargo-dist
         name: Post-build
