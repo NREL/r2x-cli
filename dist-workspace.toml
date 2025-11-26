@@ -20,17 +20,11 @@ install-updater = false
 # Skip checking whether the specified configuration files are up to date
 allow-dirty = ["ci"]
 
-include = [
-    "python-shim/dist/libpython3.12.dylib",
-    "python-shim/dist/libpython3.12.so",
-    "python-shim/dist/python312.dll",
-]
-
 copy-cdylibs = true
 cdylibs = [
-    "python-shim/dist/libpython3.12.dylib",
-    "python-shim/dist/libpython3.12.so",
-    "python-shim/dist/python312.dll",
+    "python-shim/${target}/libpython3.12.dylib",
+    "python-shim/${target}/libpython3.12.so",
+    "python-shim/${target}/python312.dll",
 ]
 
 
