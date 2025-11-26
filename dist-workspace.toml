@@ -26,6 +26,7 @@ include = [
     "python-shim/dist/python312.dll",
 ]
 
+copy-cdylibs = true
 cdylibs = [
     "python-shim/dist/libpython3.12.dylib",
     "python-shim/dist/libpython3.12.so",
