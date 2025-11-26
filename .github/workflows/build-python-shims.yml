@@ -1,6 +1,7 @@
 name: Build Python Shims (Reusable)
 
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       py-version:
@@ -20,41 +21,7 @@ on:
         default: false
 
 jobs:
-  cache-check:
-    runs-on: ubuntu-22.04
-    outputs:
-      cache-hit: ${{ steps.restore-cache.outputs.cache-hit }}
-      cache-key: ${{ steps.set-key.outputs.cache-key }}
-    steps:
-      - name: Set Cache Key
-        id: set-key
-        run: |
-          HASH=$(echo "${{ hashFiles('scripts/prepare_python_shim.sh', '.github/actions/setup-uv-python/**') }}" | sha256sum | cut -d ' ' -f 1)
-          WEEK=$(date +%Y-%U)  # Weekly expiration: change to %Y-%m for monthly, etc.
-          KEY="python-shims-v${{ inputs.py-version }}-stable-${HASH}-${WEEK}"
-          if ${{ inputs.force-rebuild }}; then
-            KEY="${KEY}-forced-${{ github.run_id }}"  # Unique to force miss
-          fi
-          echo "cache-key=${KEY}" >> $GITHUB_OUTPUT
-      - name: Restore Cached Shims
-        id: restore-cache
-        uses: actions/cache/restore@v4
-        with:
-          path: python-shims-combined.zip
-          key: ${{ steps.set-key.outputs.cache-key }}
-          # Optional restore-keys for partial matches (e.g., same version but old week)
-          restore-keys: |
-            python-shims-v${{ inputs.py-version }}-stable-
-      - name: Upload Cached Zip as Artifact (on hit)
-        if: steps.restore-cache.outputs.cache-hit == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-shims-combined
-          path: python-shims-combined.zip
-
   build-shim-macos-arm:
-    needs: cache-check
-    if: needs.cache-check.outputs.cache-hit != 'true'
     runs-on: macos-14
     env:
       PY_VERSION: ${{ inputs.py-version }}
@@ -71,14 +38,14 @@ jobs:
           python-version: ${{ env.PY_VERSION }}
       - name: Prepare shim
         run: PY_VERSION=${{ env.PY_VERSION }} TARGET_TRIPLE=${{ env.TARGET_TRIPLE }} ./scripts/prepare_python_shim.sh
+      - name: Zip Shim
+        run: zip -r python-shim-${{ env.TARGET_TRIPLE }}.zip python-shim/${{ env.TARGET_TRIPLE }}
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}/*
+          path: python-shim-${{ env.TARGET_TRIPLE }}.zip
 
   build-shim-macos-intel:
-    needs: cache-check
-    if: needs.cache-check.outputs.cache-hit != 'true'
     runs-on: macos-13
     env:
       PY_VERSION: ${{ inputs.py-version }}
@@ -95,14 +62,14 @@ jobs:
           python-version: ${{ env.PY_VERSION }}
       - name: Prepare shim
         run: PY_VERSION=${{ env.PY_VERSION }} TARGET_TRIPLE=${{ env.TARGET_TRIPLE }} ./scripts/prepare_python_shim.sh
+      - name: Zip Shim
+        run: zip -r python-shim-${{ env.TARGET_TRIPLE }}.zip python-shim/${{ env.TARGET_TRIPLE }}
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}/*
+          path: python-shim-${{ env.TARGET_TRIPLE }}.zip
 
   build-shim-linux-x86:
-    needs: cache-check
-    if: needs.cache-check.outputs.cache-hit != 'true'
     runs-on: ubuntu-22.04
     env:
       PY_VERSION: ${{ inputs.py-version }}
@@ -119,14 +86,14 @@ jobs:
           python-version: ${{ env.PY_VERSION }}
       - name: Prepare shim
         run: PY_VERSION=${{ env.PY_VERSION }} TARGET_TRIPLE=${{ env.TARGET_TRIPLE }} ./scripts/prepare_python_shim.sh
+      - name: Zip Shim
+        run: zip -r python-shim-${{ env.TARGET_TRIPLE }}.zip python-shim/${{ env.TARGET_TRIPLE }}
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}/*
+          path: python-shim-${{ env.TARGET_TRIPLE }}.zip
 
   build-shim-linux-arm:
-    needs: cache-check
-    if: needs.cache-check.outputs.cache-hit != 'true'
     runs-on: ubuntu-22.04-arm
     env:
       PY_VERSION: ${{ inputs.py-version }}
@@ -143,14 +110,14 @@ jobs:
           python-version: ${{ env.PY_VERSION }}
       - name: Prepare shim
         run: PY_VERSION=${{ env.PY_VERSION }} TARGET_TRIPLE=${{ env.TARGET_TRIPLE }} ./scripts/prepare_python_shim.sh
+      - name: Zip Shim
+        run: zip -r python-shim-${{ env.TARGET_TRIPLE }}.zip python-shim/${{ env.TARGET_TRIPLE }}
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}/*
+          path: python-shim-${{ env.TARGET_TRIPLE }}.zip
 
   build-shim-windows-x86:
-    needs: cache-check
-    if: needs.cache-check.outputs.cache-hit != 'true'
     runs-on: windows-latest
     env:
       PY_VERSION: ${{ inputs.py-version }}
@@ -168,95 +135,9 @@ jobs:
       - name: Prepare shim
         shell: bash
         run: PY_VERSION=${{ env.PY_VERSION }} TARGET_TRIPLE=${{ env.TARGET_TRIPLE }} ./scripts/prepare_python_shim.sh
+      - name: Zip Shim
+        run: zip -r python-shim-${{ env.TARGET_TRIPLE }}.zip python-shim/${{ env.TARGET_TRIPLE }}
       - uses: actions/upload-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: python-shim/${{ env.TARGET_TRIPLE }}/*
-
-  aggregate-shims:
-    needs: [cache-check, build-shim-macos-arm, build-shim-macos-intel, build-shim-linux-x86, build-shim-linux-arm, build-shim-windows-x86]
-    if: needs.cache-check.outputs.cache-hit != 'true'  # Only run if we built
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Download macOS ARM Shim
-        uses: actions/download-artifact@v4
-        with:
-          name: python-shim-aarch64-apple-darwin
-          path: python-shim/aarch64-apple-darwin
-      - name: Download macOS Intel Shim
-        uses: actions/download-artifact@v4
-        with:
-          name: python-shim-x86_64-apple-darwin
-          path: python-shim/x86_64-apple-darwin
-      - name: Download Linux x86 Shim
-        uses: actions/download-artifact@v4
-        with:
-          name: python-shim-x86_64-unknown-linux-gnu
-          path: python-shim/x86_64-unknown-linux-gnu
-      - name: Download Linux ARM Shim
-        uses: actions/download-artifact@v4
-        with:
-          name: python-shim-aarch64-unknown-linux-gnu
-          path: python-shim/aarch64-unknown-linux-gnu
-      - name: Download Windows Shim
-        uses: actions/download-artifact@v4
-        with:
-          name: python-shim-x86_64-pc-windows-msvc
-          path: python-shim/x86_64-pc-windows-msvc
-      - name: Zip Combined Shims for Cache
-        run: zip -r python-shims-combined.zip python-shim/
-      - name: Verify Shims in Combined Zip
-        run: |
-          mkdir -p temp && unzip python-shims-combined.zip -d temp/
-          expected_files=(
-            "temp/python-shim/aarch64-apple-darwin/libpython3.12.dylib"
-            "temp/python-shim/x86_64-apple-darwin/libpython3.12.dylib"
-            "temp/python-shim/aarch64-unknown-linux-gnu/libpython3.12.so"
-            "temp/python-shim/x86_64-unknown-linux-gnu/libpython3.12.so"
-            "temp/python-shim/x86_64-pc-windows-msvc/python312.dll"
-          )
-          for file in "${expected_files[@]}"; do
-            if [[ ! -f "$file" ]]; then
-              echo "Error: Missing expected shim file $file"
-              ls -la temp/python-shim/ || echo "No shims directory"
-              exit 1
-            fi
-          done
-          echo "All expected shim files verified."
-          rm -rf temp
-      - name: Zip and Upload Separate Shim Artifacts
-        run: |
-          zip -r python-shims-aarch64-apple-darwin.zip python-shim/aarch64-apple-darwin
-          zip -r python-shims-x86_64-apple-darwin.zip python-shim/x86_64-apple-darwin
-          zip -r python-shims-aarch64-unknown-linux-gnu.zip python-shim/aarch64-unknown-linux-gnu
-          zip -r python-shims-x86_64-unknown-linux-gnu.zip python-shim/x86_64-unknown-linux-gnu
-          zip -r python-shims-x86_64-pc-windows-msvc.zip python-shim/x86_64-pc-windows-msvc
-      - uses: actions/upload-artifact@v4
-        with:
-          name: python-shims-aarch64-apple-darwin
-          path: python-shims-aarch64-apple-darwin.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: python-shims-x86_64-apple-darwin
-          path: python-shims-x86_64-apple-darwin.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: python-shims-aarch64-unknown-linux-gnu
-          path: python-shims-aarch64-unknown-linux-gnu.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: python-shims-x86_64-unknown-linux-gnu
-          path: python-shims-x86_64-unknown-linux-gnu.zip
-      - uses: actions/upload-artifact@v4
-        with:
-          name: python-shims-x86_64-pc-windows-msvc
-          path: python-shims-x86_64-pc-windows-msvc.zip
-      - name: Save Combined to Cache
-        uses: actions/cache/save@v4
-        with:
-          path: python-shims-combined.zip
-          key: ${{ needs.cache-check.outputs.cache-key }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: python-shims-combined
-          path: python-shims-combined.zip
+          path: python-shim-${{ env.TARGET_TRIPLE }}.zip
