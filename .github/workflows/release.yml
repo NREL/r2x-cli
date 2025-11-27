@@ -201,13 +201,17 @@ jobs:
         run: |
           IFS=' ' read -r -a targets <<< "${{ join(matrix.targets, ' ') }}"
           TARGET_TRIPLE="${targets[0]}"
+          echo "Debug: TARGET_TRIPLE is $TARGET_TRIPLE"
           echo "TARGET_TRIPLE=${TARGET_TRIPLE}" >> $GITHUB_ENV
 
       - name: Download Specific Python Shim
         uses: actions/download-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: $GITHUB_WORKSPACE
+          path: .
+
+      - name: Check downloaded shim file
+        run: ls -la python-shim-${{ env.TARGET_TRIPLE }}.tar.gz
 
       - name: Unzip Specific Python Shim
         run: tar -xzf python-shim-${{ env.TARGET_TRIPLE }}.tar.gz
