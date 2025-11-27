@@ -22,9 +22,7 @@ allow-dirty = ["ci"]
 
 copy-cdylibs = true
 include = [
-    "python-shim/*/libpython3.12.dylib",
-    "python-shim/*/libpython3.12.so",
-    "python-shim/*/python312.dll",
+    "python-shim/*/*",
 ]
 
 

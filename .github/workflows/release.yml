@@ -215,14 +215,18 @@ jobs:
       - name: Set Shim Library Path
         shell: bash
         run: |
+          SHIM_DIR="$PWD/python-shim/${TARGET_TRIPLE}"
           if [[ "${{ runner.os }}" == "Linux" ]]; then
-            echo "LIBRARY_PATH=$PWD/python-shim/${TARGET_TRIPLE}:$LIBRARY_PATH" >> $GITHUB_ENV
-            echo "LD_LIBRARY_PATH=$PWD/python-shim/${TARGET_TRIPLE}:$LD_LIBRARY_PATH" >> $GITHUB_ENV
+            echo "LIBRARY_PATH=$SHIM_DIR:$LIBRARY_PATH" >> $GITHUB_ENV
+            echo "LD_LIBRARY_PATH=$SHIM_DIR:$LD_LIBRARY_PATH" >> $GITHUB_ENV
           elif [[ "${{ runner.os }}" == "macOS" ]]; then
-            echo "DYLD_LIBRARY_PATH=$PWD/python-shim/${TARGET_TRIPLE}:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
+            echo "DYLD_LIBRARY_PATH=$SHIM_DIR:$DYLD_LIBRARY_PATH" >> $GITHUB_ENV
           elif [[ "${{ runner.os }}" == "Windows" ]]; then
-            echo "PATH=$PWD/python-shim/${TARGET_TRIPLE};$PATH" >> $GITHUB_ENV
+            echo "PATH=$SHIM_DIR;$PATH" >> $GITHUB_ENV
           fi
+
+      - name: Debug - List all files in project directory
+        run: find /home/runner/work/r2x-cli/r2x-cli -type f
 
       - name: Install uv & python
         uses: ./.github/actions/setup-uv-python
