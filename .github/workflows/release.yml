@@ -225,7 +225,7 @@ jobs:
             echo "PATH=$SHIM_DIR;$PATH" >> $GITHUB_ENV
           fi
 
-      - name: Debug: List all files in project directory
+      - name: List all files in project directory
         run: find $GITHUB_WORKSPACE -type f
 
       - name: Install uv & python
