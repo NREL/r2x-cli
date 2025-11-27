@@ -225,8 +225,8 @@ jobs:
             echo "PATH=$SHIM_DIR;$PATH" >> $GITHUB_ENV
           fi
 
-      - name: Debug - List all files in project directory
-        run: find /home/runner/work/r2x-cli/r2x-cli -type f
+      - name: Debug: List all files in project directory
+        run: find $GITHUB_WORKSPACE -type f
 
       - name: Install uv & python
         uses: ./.github/actions/setup-uv-python
