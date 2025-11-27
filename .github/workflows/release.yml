@@ -207,10 +207,13 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: python-shim-${{ env.TARGET_TRIPLE }}
-          path: .
+          path: $GITHUB_WORKSPACE
 
       - name: Unzip Specific Python Shim
         run: tar -xzf python-shim-${{ env.TARGET_TRIPLE }}.tar.gz
+
+      - name: List python-shim contents after unzip
+        run: echo "Python-shim contents after unzip:" && find $GITHUB_WORKSPACE -path "*/python-shim/*" -type f
 
       - name: Set Shim Library Path
         shell: bash
@@ -224,9 +227,6 @@ jobs:
           elif [[ "${{ runner.os }}" == "Windows" ]]; then
             echo "PATH=$SHIM_DIR;$PATH" >> $GITHUB_ENV
           fi
-
-      - name: List all files in project directory
-        run: find $GITHUB_WORKSPACE -type f
 
       - name: Install uv & python
         uses: ./.github/actions/setup-uv-python
@@ -252,6 +252,9 @@ jobs:
       - name: Install dependencies
         run: |
           ${{ matrix.packages_install }}
+
+      - name: List all files in project directory
+        run: find $GITHUB_WORKSPACE -type f
 
       - name: Build artifacts
         run: |
