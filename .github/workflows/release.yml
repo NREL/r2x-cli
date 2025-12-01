@@ -215,11 +215,30 @@ jobs:
         shell: bash
         run: |
           ls -la .
-          ls -l python-shim-${{ env.TARGET_TRIPLE }}.tar.xz
+          SHIM_FILE=$(ls python-shim-${{ env.TARGET_TRIPLE }}.* 2>/dev/null)
+          if [[ -n "$SHIM_FILE" ]]; then
+            ls -l "$SHIM_FILE"
+          else
+            echo "Shim file not found"
+            exit 1
+          fi
 
       - name: Extract Specific Python Shim
         shell: bash
-        run: tar -xf python-shim-${{ env.TARGET_TRIPLE }}.tar.xz
+        run: |
+          SHIM_FILE=$(ls python-shim-${{ env.TARGET_TRIPLE }}.* 2>/dev/null)
+          if [[ -z "$SHIM_FILE" ]]; then
+            echo "Shim file not found"
+            exit 1
+          fi
+          if [[ "$SHIM_FILE" == *.zip ]]; then
+            unzip "$SHIM_FILE"
+          elif [[ "$SHIM_FILE" == *.tar.* ]]; then
+            tar -xf "$SHIM_FILE"
+          else
+            echo "Unknown archive format: $SHIM_FILE"
+            exit 1
+          fi
 
       - name: List python-shim contents after extract
         shell: bash
@@ -279,12 +298,26 @@ jobs:
       - name: Add Python shim to bundle
         shell: bash
         run: |
-          BUNDLE_FILE="r2x-${TARGET_TRIPLE}.tar.xz"
-          tar -xf "target/distrib/${BUNDLE_FILE}" 2>/dev/null || true
-          mkdir -p r2x-${TARGET_TRIPLE}
-          cp -r python-shim/${TARGET_TRIPLE}/* r2x-${TARGET_TRIPLE}/
-          tar -cJf "target/distrib/${BUNDLE_FILE}" r2x-${TARGET_TRIPLE}/
-          rm -rf r2x-${TARGET_TRIPLE}
+          BUNDLE_FILE=$(ls target/distrib/r2x-${TARGET_TRIPLE}.* 2>/dev/null)
+          if [[ -z "$BUNDLE_FILE" ]]; then
+            echo "Bundle file not found"
+            exit 1
+          fi
+          if [[ "$BUNDLE_FILE" == *.zip ]]; then
+            unzip "$BUNDLE_FILE" 2>/dev/null || true
+            cp python-shim/${TARGET_TRIPLE}/* r2x-${TARGET_TRIPLE}/ 2>/dev/null || true
+            zip -r "$BUNDLE_FILE" r2x-${TARGET_TRIPLE}/
+            rm -rf r2x-${TARGET_TRIPLE}
+          elif [[ "$BUNDLE_FILE" == *.tar.* ]]; then
+            tar -xf "$BUNDLE_FILE" 2>/dev/null || true
+            mkdir -p r2x-${TARGET_TRIPLE}
+            cp -r python-shim/${TARGET_TRIPLE}/* r2x-${TARGET_TRIPLE}/ 2>/dev/null || true
+            tar -cJf "$BUNDLE_FILE" r2x-${TARGET_TRIPLE}/
+            rm -rf r2x-${TARGET_TRIPLE}
+          else
+            echo "Unknown bundle format: $BUNDLE_FILE"
+            exit 1
+          fi
 
       - name: Verify cdylibs in Bundle
         shell: bash
@@ -292,9 +325,13 @@ jobs:
           # Set target triple from matrix
           IFS=' ' read -r -a targets <<< "${{ join(matrix.targets, ' ') }}"
           TARGET_TRIPLE="${targets[0]}"
-          TAR_FILE="r2x-${TARGET_TRIPLE}.tar.xz"
-          CONTENTS=$(tar -tf "target/distrib/${TAR_FILE}")
-          echo "Tar.xz contents:"
+          TAR_FILE=$(ls target/distrib/r2x-${TARGET_TRIPLE}.*)
+          if [[ "$TAR_FILE" == *.zip ]]; then
+            CONTENTS=$(unzip -l "$TAR_FILE" | tail -n +4 | awk '{print $4}')
+          else
+            CONTENTS=$(tar -tf "$TAR_FILE")
+          fi
+          echo "Archive contents:"
           echo "$CONTENTS"
           if echo "$CONTENTS" | grep -q "libpython\|python.*\.dll"; then
             echo "cdylibs verified in bundle for $TARGET_TRIPLE."
