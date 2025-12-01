@@ -299,7 +299,7 @@ jobs:
         shell: bash
         run: |
           echo "Files in target/distrib: $(ls target/distrib/ 2>/dev/null || echo 'none')"
-          BUNDLE_FILE=$(ls target/distrib/r2x-${TARGET_TRIPLE}.* 2>/dev/null | grep -E '\.(tar\.|zip)$' | head -1)
+          BUNDLE_FILE=$(ls target/distrib/r2x-${TARGET_TRIPLE}.* 2>/dev/null | grep -E '\.(tar\.xz|zip)$' | head -1)
           echo "Detected BUNDLE_FILE: '$BUNDLE_FILE'"
           if [[ -z "$BUNDLE_FILE" ]]; then
             echo "Bundle file not found"
@@ -334,7 +334,7 @@ jobs:
           # Set target triple from matrix
           IFS=' ' read -r -a targets <<< "${{ join(matrix.targets, ' ') }}"
           TARGET_TRIPLE="${targets[0]}"
-          TAR_FILE=$(ls target/distrib/r2x-${TARGET_TRIPLE}.* | grep -E '\.(tar\.|zip)$' | head -1)
+          TAR_FILE=$(ls target/distrib/r2x-${TARGET_TRIPLE}.* | grep -E '\.(tar\.xz|zip)$' | head -1)
           if [[ "$TAR_FILE" == *.zip ]]; then
             CONTENTS=$(unzip -l "$TAR_FILE" | tail -n +4 | awk '{print $4}')
           else
