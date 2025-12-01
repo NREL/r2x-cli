@@ -211,10 +211,10 @@ jobs:
           path: .
 
       - name: Check downloaded shim file
-        run: ls -la python-shim-${{ env.TARGET_TRIPLE }}.tar.gz
+        run: ls -l python-shim-${{ env.TARGET_TRIPLE }}.tar.xz
 
       - name: Unzip Specific Python Shim
-        run: tar -xzf python-shim-${{ env.TARGET_TRIPLE }}.tar.gz
+        run: tar -xf python-shim-${{ env.TARGET_TRIPLE }}.tar.xz
 
       - name: List python-shim contents after unzip
         run: echo "Python-shim contents after unzip:" && find $GITHUB_WORKSPACE -path "*/python-shim/*" -type f
@@ -270,9 +270,9 @@ jobs:
         shell: bash
         run: |
           TAR_FILE="r2x-${TARGET_TRIPLE}.tar.xz"
-          tar -xzf "target/distrib/${TAR_FILE}"
+          tar -xf "target/distrib/${TAR_FILE}"
           cp python-shim/${TARGET_TRIPLE}/* r2x-${TARGET_TRIPLE}/
-          tar -czf "target/distrib/${TAR_FILE}" r2x-${TARGET_TRIPLE}/
+          tar -cJf "target/distrib/${TAR_FILE}" r2x-${TARGET_TRIPLE}/
           rm -rf r2x-${TARGET_TRIPLE}
 
       - name: Verify cdylibs in Bundle

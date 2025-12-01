@@ -19,6 +19,8 @@ install-path = "CARGO_HOME"
 install-updater = false
 # Skip checking whether the specified configuration files are up to date
 allow-dirty = ["ci"]
+# Standardize compression to xz for tar archives
+compression = "xz"
 
 copy-cdylibs = true
 

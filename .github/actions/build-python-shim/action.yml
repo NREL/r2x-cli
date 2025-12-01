@@ -22,8 +22,8 @@ runs:
       run: PY_VERSION=${{ inputs.py_version }} TARGET_TRIPLE=${{ inputs.target_triple }} ./scripts/prepare_python_shim.sh
     - name: Archive Shim
       shell: bash
-      run: tar -czf python-shim-${{ inputs.target_triple }}.tar.gz python-shim/${{ inputs.target_triple }}
+      run: tar -cJf python-shim-${{ inputs.target_triple }}.tar.xz python-shim/${{ inputs.target_triple }}
     - uses: actions/upload-artifact@v4
       with:
         name: python-shim-${{ inputs.target_triple }}
-        path: python-shim-${{ inputs.target_triple }}.tar.gz
+        path: python-shim-${{ inputs.target_triple }}.tar.xz
