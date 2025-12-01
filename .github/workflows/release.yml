@@ -189,6 +189,7 @@ jobs:
       BUILD_MANIFEST_NAME: target/distrib/${{ join(matrix.targets, '-') }}-dist-manifest.json
     steps:
       - name: enable windows longpaths
+        shell: bash
         run: |
           git config --global core.longpaths true
       - uses: actions/checkout@v4
@@ -229,6 +230,7 @@ jobs:
           fi
 
       - name: List python-shim contents after unzip
+        shell: bash
         run: echo "Python-shim contents after unzip:" && find $GITHUB_WORKSPACE -path "*/python-shim/*" -type f
 
       - name: Set Shim Library Path
@@ -251,6 +253,7 @@ jobs:
 
       - name: Install Rust non-interactively if not already installed
         if: ${{ matrix.container }}
+        shell: bash
         run: |
           if ! command -v cargo > /dev/null 2>&1; then
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -266,13 +269,16 @@ jobs:
           path: target/distrib/
           merge-multiple: true
       - name: Install dependencies
+        shell: bash
         run: |
           ${{ matrix.packages_install }}
 
       - name: List all files in project directory
+        shell: bash
         run: find $GITHUB_WORKSPACE -type f
 
       - name: Build artifacts
+        shell: bash
         run: |
           # Actually do builds and make zips and whatnot
           dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
@@ -424,6 +430,7 @@ jobs:
           path: artifacts
           merge-multiple: true
       - name: Cleanup
+        shell: bash
         run: |
           # Remove the granular manifests
           rm -f artifacts/*-dist-manifest.json

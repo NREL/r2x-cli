@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   workflow_call:
     inputs:
-      py-version:
+      version:
         description: 'Python version to build shims for'
         required: false
         type: string
@@ -46,7 +46,7 @@ jobs:
           path: python-shim-${{ env.TARGET_TRIPLE }}.${{ contains(env.TARGET_TRIPLE, 'windows') && 'tar.gz' || 'tar.xz' }}
 
   build-shim-macos-intel:
-    runs-on: macos-13
+    runs-on: macos-15-intel
     env:
       PY_VERSION: ${{ inputs.py-version }}
       TARGET_TRIPLE: "x86_64-apple-darwin"
