@@ -298,26 +298,35 @@ jobs:
       - name: Add Python shim to bundle
         shell: bash
         run: |
-          BUNDLE_FILE=$(ls target/distrib/r2x-${TARGET_TRIPLE}.* | grep -E '\.(tar\.|zip)$' | head -1)
+          echo "Files in target/distrib: $(ls target/distrib/ 2>/dev/null || echo 'none')"
+          BUNDLE_FILE=$(ls target/distrib/r2x-${TARGET_TRIPLE}.* 2>/dev/null | grep -E '\.(tar\.|zip)$' | head -1)
+          echo "Detected BUNDLE_FILE: '$BUNDLE_FILE'"
           if [[ -z "$BUNDLE_FILE" ]]; then
             echo "Bundle file not found"
             exit 1
           fi
           if [[ "$BUNDLE_FILE" == *.zip ]]; then
+            echo "Extracting zip: $BUNDLE_FILE"
             unzip "$BUNDLE_FILE" 2>/dev/null || true
+            echo "Copying shims to r2x-${TARGET_TRIPLE}/"
             cp python-shim/${TARGET_TRIPLE}/* r2x-${TARGET_TRIPLE}/ 2>/dev/null || true
+            echo "Re-archiving zip: $BUNDLE_FILE"
             zip -r "$BUNDLE_FILE" r2x-${TARGET_TRIPLE}/
             rm -rf r2x-${TARGET_TRIPLE}
           elif [[ "$BUNDLE_FILE" == *.tar.* ]]; then
+            echo "Extracting tar: $BUNDLE_FILE"
             tar -xf "$BUNDLE_FILE" 2>/dev/null || true
             mkdir -p r2x-${TARGET_TRIPLE}
+            echo "Copying shims to r2x-${TARGET_TRIPLE}/"
             cp -r python-shim/${TARGET_TRIPLE}/* r2x-${TARGET_TRIPLE}/ 2>/dev/null || true
+            echo "Re-archiving tar: $BUNDLE_FILE"
             tar -cJf "$BUNDLE_FILE" r2x-${TARGET_TRIPLE}/
             rm -rf r2x-${TARGET_TRIPLE}
           else
             echo "Unknown bundle format: $BUNDLE_FILE"
             exit 1
           fi
+          echo "Add shim to bundle completed for $TARGET_TRIPLE"
 
       - name: Verify cdylibs in Bundle
         shell: bash
