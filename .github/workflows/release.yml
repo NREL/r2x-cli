@@ -287,11 +287,19 @@ jobs:
       - name: Add Python shim to bundle
         shell: bash
         run: |
-          TAR_FILE="r2x-${TARGET_TRIPLE}.tar.xz"
-          tar -xf "target/distrib/${TAR_FILE}"
-          cp python-shim/${TARGET_TRIPLE}/* r2x-${TARGET_TRIPLE}/
-          tar -cJf "target/distrib/${TAR_FILE}" r2x-${TARGET_TRIPLE}/
-          rm -rf r2x-${TARGET_TRIPLE}
+          if [[ "${TARGET_TRIPLE}" == *"windows"* ]]; then
+            TAR_FILE="r2x-${TARGET_TRIPLE}.tar.gz"
+            tar -xzf "target/distrib/${TAR_FILE}"
+            cp python-shim/${TARGET_TRIPLE}/* r2x-${TARGET_TRIPLE}/
+            tar -czf "target/distrib/${TAR_FILE}" r2x-${TARGET_TRIPLE}/
+            rm -rf r2x-${TARGET_TRIPLE}
+          else
+            TAR_FILE="r2x-${TARGET_TRIPLE}.tar.xz"
+            tar -xf "target/distrib/${TAR_FILE}"
+            cp python-shim/${TARGET_TRIPLE}/* r2x-${TARGET_TRIPLE}/
+            tar -cJf "target/distrib/${TAR_FILE}" r2x-${TARGET_TRIPLE}/
+            rm -rf r2x-${TARGET_TRIPLE}
+          fi
 
       - name: Verify cdylibs in Bundle
         shell: bash
@@ -299,7 +307,11 @@ jobs:
           # Set target triple from matrix
           IFS=' ' read -r -a targets <<< "${{ join(matrix.targets, ' ') }}"
           TARGET_TRIPLE="${targets[0]}"
-          TAR_FILE="r2x-${TARGET_TRIPLE}.tar.xz"
+          if [[ "${TARGET_TRIPLE}" == *"windows"* ]]; then
+            TAR_FILE="r2x-${TARGET_TRIPLE}.tar.gz"
+          else
+            TAR_FILE="r2x-${TARGET_TRIPLE}.tar.xz"
+          fi
           CONTENTS=$(tar -tf "target/distrib/${TAR_FILE}")
           echo "Tar.xz contents:"
           echo "$CONTENTS"
