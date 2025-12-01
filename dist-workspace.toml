@@ -24,6 +24,9 @@ compression = "xz"
 
 copy-cdylibs = true
 
+[dist.target."x86_64-pc-windows-msvc"]
+package-format = "zip"
+
 
 
 [workspace.metadata.dist]
