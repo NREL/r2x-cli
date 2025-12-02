@@ -283,6 +283,9 @@ jobs:
           pattern: artifacts-*
           path: target/distrib/
           merge-multiple: true
+      - name: Add Python cdylibs to bundle
+        shell: bash
+        run: cp python-shim/${TARGET_TRIPLE}/* target/distrib/${TARGET_TRIPLE}/
       - name: Install dependencies
         shell: bash
         run: |
@@ -400,6 +403,10 @@ jobs:
           pattern: artifacts-*
           path: target/distrib/
           merge-multiple: true
+      - name: Modify installer script to copy python-shim
+        shell: bash
+        run: |
+          python scripts/modify_installer.py target/distrib/r2x-installer.sh
       - id: host
         shell: bash
         run: |
