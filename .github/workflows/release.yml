@@ -299,14 +299,6 @@ jobs:
           dist build ${{ needs.plan.outputs.tag-flag }} --print=linkage --output-format=json ${{ matrix.dist_args }} > dist-manifest.json
           echo "dist ran successfully"
 
-      - name: Verify Cdylib Bundling
-        shell: bash
-        run: |
-          echo "Verifying root layout"
-          ls -l target/distrib/$TARGET_TRIPLE
-
-          echo "Verifying python-shim layout"
-          ls -l target/distrib/$TARGET_TRIPLE/python-shim/$TARGET_TRIPLE
 
       - id: cargo-dist
         name: Post-build
