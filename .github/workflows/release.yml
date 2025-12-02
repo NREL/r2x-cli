@@ -283,9 +283,6 @@ jobs:
           pattern: artifacts-*
           path: target/distrib/
           merge-multiple: true
-      - name: Add Python cdylibs to bundle
-        shell: bash
-        run: cp python-shim/${TARGET_TRIPLE}/* target/distrib/${TARGET_TRIPLE}/
       - name: Install dependencies
         shell: bash
         run: |
