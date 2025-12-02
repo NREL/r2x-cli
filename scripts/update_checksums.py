@@ -6,12 +6,15 @@ import sys
 
 manifest_path = sys.argv[1]
 
+hashes = {}
+
 # Update .sha256 files
 for pattern in ["target/distrib/r2x-*.tar.xz", "target/distrib/r2x-*.zip"]:
     for file in glob.glob(pattern):
         print(f"Updating checksum for {file}")
         with open(file, "rb") as f:
             h = hashlib.sha256(f.read()).hexdigest()
+        hashes[os.path.basename(file)] = h
         with open(file + ".sha256", "w") as f:
             f.write(f"{h}  {file}\n")
 
@@ -21,9 +24,7 @@ if os.path.exists(manifest_path):
         data = json.load(f)
     for release in data.get("releases", []):
         for art in release.get("artifacts", []):
-            path = art.get("path")
-            if path and os.path.exists(path):
-                with open(path, "rb") as f:
-                    art["checksums"]["sha256"] = hashlib.sha256(f.read()).hexdigest()
+            if isinstance(art, str) and art in hashes:
+                data["artifacts"][art]["checksums"]["sha256"] = hashes[art]
     with open(manifest_path, "w") as f:
         json.dump(data, f, indent=2)
