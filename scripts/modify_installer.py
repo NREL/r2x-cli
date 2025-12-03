@@ -22,7 +22,6 @@ def modify_installer_script(script_path):
             "    # Link contents of python-shim/{target} to install dir root\n"
             '    if [ -d "$_src_dir/python-shim/$_arch" ]; then\n'
             '        cp "$_src_dir/python-shim/$_arch"/* "$_install_dir/"\n'
-            '        say "  python-shim/{target} contents (copied to root)"\n'
             '        rm -rf "$_src_dir/python-shim"\n'
             "    fi\n"
         )
@@ -34,9 +33,7 @@ def modify_installer_script(script_path):
             "    $tmp_dir = Split-Path $bin_path\n"
             '    $shim_dir = "$tmp_dir\\python-shim\\$arch"\n'
             "    if (Test-Path $shim_dir) {\n"
-            '        Get-ChildItem "$shim_dir" | ForEach-Object { Write-Information "DEBUG: $_" }\n'
             '        Copy-Item "$shim_dir\\*" -Destination "$dest_dir" -Recurse\n'
-            '        Write-Information "  python-shim/{target} contents (copied to bin)"\n'
             '        Remove-Item "$tmp_dir\\python-shim" -Recurse -Force\n'
             "    }\n"
         )
