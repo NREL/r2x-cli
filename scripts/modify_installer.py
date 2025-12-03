@@ -30,12 +30,11 @@ def modify_installer_script(script_path):
     elif file_ext == ".ps1":
         # Code to insert for PowerShell script
         insert_code = (
-            "    # Copy contents of python-shim/{target} to install dir root\n"
+            "    # Copy contents of python-shim/{target} to install dir bin\n"
             '    $shim_dir = "$tmp\\python-shim\\$arch"\n'
             "    if (Test-Path $shim_dir) {\n"
-            "        $install_root = Split-Path $dest_dir -Parent\n"
-            '        Copy-Item "$shim_dir\\*" -Destination "$install_root" -Recurse\n'
-            '        Write-Information "  python-shim/{target} contents (copied to root)"\n'
+            '        Copy-Item "$shim_dir\\*" -Destination "$dest_dir" -Recurse\n'
+            '        Write-Information "  python-shim/{target} contents (copied to bin)"\n'
             '        Remove-Item "$tmp\\python-shim" -Recurse -Force\n'
             "    }\n"
         )
