@@ -345,6 +345,11 @@ jobs:
                   find $GITHUB_WORKSPACE -type f
                   python scripts/modify_installer.py target/distrib/r2x-installer.sh
 
+            - name: Modify PowerShell installer script to copy python-shim
+              shell: bash
+              run: |
+                  python scripts/modify_installer.py target/distrib/powershell_installer.ps1
+            
             - name: "Upload artifacts"
               uses: actions/upload-artifact@v4
               with:

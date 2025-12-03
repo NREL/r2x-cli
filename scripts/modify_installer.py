@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Script to modify the r2x-installer.sh script by inserting logic to copy contents of python-shim/{target} to install dir root.
-Usage: python modify_installer.py /path/to/r2x-installer.sh
+Script to modify the r2x installer scripts (shell or PowerShell) by inserting logic to copy contents of python-shim/{target} to install dir root.
+Usage: python modify_installer.py /path/to/r2x-installer.sh or /path/to/r2x-installer.ps1
 """
 
 import os
@@ -13,21 +13,42 @@ def modify_installer_script(script_path):
         print(f"Error: File '{script_path}' not found.")
         return False
 
-    # Code to insert: Copy from python-shim/{target}/* to install dir root
-    insert_code = (
-        "    # Link contents of python-shim/{target} to install dir root\n"
-        '    if [ -d "$_src_dir/python-shim/$_arch" ]; then\n'
-        '        cp "$_src_dir/python-shim/$_arch"/* "$_install_dir/"\n'
-        '        say "  python-shim/{target} contents (copied to root)"\n'
-        "    fi\n"
-    )
+    # Determine file type based on extension
+    file_ext = os.path.splitext(script_path)[1].lower()
+
+    if file_ext == ".sh":
+        # Code to insert for shell script: Copy from python-shim/{target}/* to install dir root
+        insert_code = (
+            "    # Link contents of python-shim/{target} to install dir root\n"
+            '    if [ -d "$_src_dir/python-shim/$_arch" ]; then\n'
+            '        cp "$_src_dir/python-shim/$_arch"/* "$_install_dir/"\n'
+            '        say "  python-shim/{target} contents (copied to root)"\n'
+            '        rm -rf "$_src_dir/python-shim"\n'
+            "    fi\n"
+        )
+        target_line = 'say "everything\'s installed!"'
+    elif file_ext == ".ps1":
+        # Code to insert for PowerShell script
+        insert_code = (
+            "    # Copy contents of python-shim/{target} to install dir root\n"
+            '    $shim_dir = "$tmp\\python-shim\\$arch"\n'
+            "    if (Test-Path $shim_dir) {\n"
+            "        $install_root = Split-Path $dest_dir -Parent\n"
+            '        Copy-Item "$shim_dir\\*" -Destination "$install_root" -Recurse\n'
+            '        Write-Information "  python-shim/{target} contents (copied to root)"\n'
+            '        Remove-Item "$tmp\\python-shim" -Recurse -Force\n'
+            "    }\n"
+        )
+        target_line = 'Write-Information "everything\'s installed!"'
+    else:
+        print(f"Error: Unsupported file type '{file_ext}'. Supported: .sh or .ps1")
+        return False
 
     # Read the file
     with open(script_path, "r") as f:
         content = f.read()
 
-    # Find the insertion point: after "say \"everything's installed!\""
-    target_line = 'say "everything\'s installed!"'
+    # Find the insertion point: after the target_line
     if target_line not in content:
         print(
             f"Error: Could not find '{target_line}' in the script. Make sure it's the correct file."
@@ -47,7 +68,9 @@ def modify_installer_script(script_path):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("Usage: python modify_installer.py /path/to/r2x-installer.sh")
+        print(
+            "Usage: python modify_installer.py /path/to/r2x-installer.sh or /path/to/r2x-installer.ps1"
+        )
         sys.exit(1)
 
     script_path = sys.argv[1]
