@@ -826,6 +826,7 @@ dependencies = [
  "ast-grep-language",
  "r2x-logger",
  "r2x-manifest",
+ "serde_json",
  "tempfile",
  "toml",
  "tracing",
