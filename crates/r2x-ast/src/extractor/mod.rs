@@ -2,9 +2,10 @@ use anyhow::{anyhow, Result};
 use ast_grep_core::AstGrep;
 use ast_grep_language::Python;
 use r2x_manifest::{
-    ArgumentSpec, ConfigField, ConfigSpec, IOContract, IOSlot, ImplementationType, InvocationSpec,
-    PluginKind, PluginSpec, ResourceSpec, StoreMode, StoreSpec,
+    ArgumentSource, ArgumentSpec, ConfigField, ConfigSpec, IOContract, IOSlot, IOSlotKind,
+    ImplementationType, InvocationSpec, PluginKind, PluginSpec, ResourceSpec, StoreMode, StoreSpec,
 };
+use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -148,11 +149,61 @@ impl PluginExtractor {
         let method_param = self.find_optional_kwarg_by_role(&kwargs, args::KwArgRole::Method);
         let resolved_method = method_param.or_else(|| Self::default_method_for_kind(&kind));
 
-        let invocation = InvocationSpec {
-            implementation: ImplementationType::Class,
-            method: resolved_method,
-            constructor: constructor_args,
-            call: Vec::new(),
+        let invocation = match kind {
+            PluginKind::Parser => InvocationSpec {
+                implementation: ImplementationType::Class,
+                method: resolved_method,
+                constructor: vec![ArgumentSpec {
+                    name: "config".to_string(),
+                    source: ArgumentSource::Config,
+                    optional: false,
+                    default: None,
+                    description: None,
+                }],
+                call: vec![ArgumentSpec {
+                    name: "store".to_string(),
+                    source: ArgumentSource::Store,
+                    optional: false,
+                    default: None,
+                    description: None,
+                }],
+            },
+            PluginKind::Exporter => InvocationSpec {
+                implementation: ImplementationType::Class,
+                method: resolved_method,
+                constructor: vec![ArgumentSpec {
+                    name: "config".to_string(),
+                    source: ArgumentSource::Config,
+                    optional: true,
+                    default: None,
+                    description: None,
+                }],
+                call: vec![ArgumentSpec {
+                    name: "system".to_string(),
+                    source: ArgumentSource::System,
+                    optional: false,
+                    default: None,
+                    description: None,
+                }],
+            },
+            PluginKind::Modifier => InvocationSpec {
+                implementation: Self::infer_invocation_type(&entry),
+                method: resolved_method,
+                constructor: Vec::new(),
+                call: vec![ArgumentSpec {
+                    name: "system".to_string(),
+                    source: ArgumentSource::System,
+                    optional: false,
+                    default: None,
+                    description: None,
+                }],
+            },
+            _ => InvocationSpec {
+                implementation: Self::infer_invocation_type(&entry),
+                method: resolved_method,
+                constructor: constructor_args,
+                call: Vec::new(),
+            },
         };
 
         let io = self.infer_io_contract(&kind);
@@ -169,6 +220,7 @@ impl PluginExtractor {
             upgrade: None,
             description,
             tags: Vec::new(),
+            metadata: HashMap::new(),
         })
     }
 
@@ -225,11 +277,61 @@ impl PluginExtractor {
         let kind = self.infer_kind_from_constructor(constructor);
         let resolved_method = method_param.or_else(|| Self::default_method_for_kind(&kind));
 
-        let invocation = InvocationSpec {
-            implementation: Self::infer_invocation_type(&entry),
-            method: resolved_method,
-            constructor: constructor_args,
-            call: Vec::new(),
+        let invocation = match kind {
+            PluginKind::Parser => InvocationSpec {
+                implementation: ImplementationType::Class,
+                method: resolved_method,
+                constructor: vec![ArgumentSpec {
+                    name: "config".to_string(),
+                    source: ArgumentSource::Config,
+                    optional: false,
+                    default: None,
+                    description: None,
+                }],
+                call: vec![ArgumentSpec {
+                    name: "store".to_string(),
+                    source: ArgumentSource::Store,
+                    optional: false,
+                    default: None,
+                    description: None,
+                }],
+            },
+            PluginKind::Exporter => InvocationSpec {
+                implementation: ImplementationType::Class,
+                method: resolved_method,
+                constructor: vec![ArgumentSpec {
+                    name: "config".to_string(),
+                    source: ArgumentSource::Config,
+                    optional: true,
+                    default: None,
+                    description: None,
+                }],
+                call: vec![ArgumentSpec {
+                    name: "system".to_string(),
+                    source: ArgumentSource::System,
+                    optional: false,
+                    default: None,
+                    description: None,
+                }],
+            },
+            PluginKind::Modifier => InvocationSpec {
+                implementation: Self::infer_invocation_type(&entry),
+                method: resolved_method,
+                constructor: Vec::new(),
+                call: vec![ArgumentSpec {
+                    name: "system".to_string(),
+                    source: ArgumentSource::System,
+                    optional: false,
+                    default: None,
+                    description: None,
+                }],
+            },
+            _ => InvocationSpec {
+                implementation: Self::infer_invocation_type(&entry),
+                method: resolved_method,
+                constructor: constructor_args,
+                call: Vec::new(),
+            },
         };
 
         let io = self.infer_io_contract(&kind);
@@ -245,6 +347,7 @@ impl PluginExtractor {
             upgrade: None,
             description,
             tags: Vec::new(),
+            metadata: HashMap::new(),
         })
     }
 
@@ -326,9 +429,12 @@ impl PluginExtractor {
             .into_iter()
             .map(|param| ArgumentSpec {
                 name: param.name,
-                annotation: param.annotation,
-                default: param.default,
-                required: param.is_required,
+                source: ArgumentSource::Custom,
+                optional: !param.is_required,
+                default: param
+                    .default
+                    .map(JsonValue::String),
+                description: None,
             })
             .collect()
     }
@@ -379,22 +485,33 @@ impl PluginExtractor {
     }
 
     fn infer_io_contract(&self, kind: &PluginKind) -> IOContract {
+        let slot = |kind: IOSlotKind| IOSlot {
+            kind,
+            name: None,
+            optional: false,
+            description: None,
+        };
+
         match kind {
             PluginKind::Parser => IOContract {
-                consumes: vec![IOSlot::StoreFolder, IOSlot::ConfigFile],
-                produces: vec![IOSlot::System],
+                consumes: vec![slot(IOSlotKind::StoreFolder), slot(IOSlotKind::ConfigFile)],
+                produces: vec![slot(IOSlotKind::System)],
+                description: None,
             },
             PluginKind::Exporter => IOContract {
-                consumes: vec![IOSlot::System, IOSlot::ConfigFile],
-                produces: vec![IOSlot::Folder],
+                consumes: vec![slot(IOSlotKind::System), slot(IOSlotKind::ConfigFile)],
+                produces: vec![slot(IOSlotKind::Folder)],
+                description: None,
             },
             PluginKind::Modifier => IOContract {
-                consumes: vec![IOSlot::System],
-                produces: vec![IOSlot::System],
+                consumes: vec![slot(IOSlotKind::System)],
+                produces: vec![slot(IOSlotKind::System)],
+                description: None,
             },
             _ => IOContract {
                 consumes: Vec::new(),
                 produces: Vec::new(),
+                description: None,
             },
         }
     }
@@ -410,12 +527,12 @@ impl PluginExtractor {
                     .get(&config_class)
                     .map(|m| self.normalize_module_path(m))
                     .unwrap_or_else(|| self.current_module.clone());
-                let fields = self.extract_config_fields(&module, &config_class);
-
                 ConfigSpec {
-                    module,
-                    name: config_class,
-                    fields,
+                    model: Some(format!("{}:{}", module, config_class)),
+                    required: true,
+                    defaults_path: None,
+                    file_mapping_path: None,
+                    description: None,
                 }
             });
 
@@ -426,19 +543,29 @@ impl PluginExtractor {
                 let value = arg.value.trim();
                 if value == "True" || value == "true" {
                     StoreSpec {
-                        mode: StoreMode::Folder,
-                        path: None,
+                        required: true,
+                        modes: vec![StoreMode::Folder],
+                        default_path: None,
+                        manifest_path: None,
+                        description: None,
                     }
                 } else {
                     StoreSpec {
-                        mode: StoreMode::Folder,
-                        path: Some(value.trim_matches('"').to_string()),
+                        required: true,
+                        modes: vec![StoreMode::Folder],
+                        default_path: Some(value.trim_matches('"').to_string()),
+                        manifest_path: None,
+                        description: None,
                     }
                 }
             });
 
         if config.is_some() || store.is_some() {
-            Some(ResourceSpec { store, config })
+            Some(ResourceSpec {
+                store,
+                config,
+                extra: HashMap::new(),
+            })
         } else {
             None
         }

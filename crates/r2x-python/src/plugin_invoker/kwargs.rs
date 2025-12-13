@@ -1,15 +1,16 @@
 use super::*;
 use crate::Bridge;
-use pyo3::exceptions::PyFileNotFoundError;
-use pyo3::types::{PyDict, PyList, PyModule};
+use pyo3::types::{PyDict, PyModule, PyString};
+use pyo3::Py;
 use r2x_logger as logger;
-use r2x_manifest::ConfigSpec;
-use std::path::Path;
+use r2x_manifest::{runtime::RuntimeBindings, types::{ArgumentSource, ConfigSpec}};
 
 impl Bridge {
+    /// Build kwargs for a set of arguments declared in the manifest.
     pub(super) fn build_kwargs<'py>(
         &self,
         py: pyo3::Python<'py>,
+        args: &[r2x_manifest::ArgumentSpec],
         config_dict: &pyo3::Bound<'py, PyDict>,
         stdin_obj: Option<&pyo3::Bound<'py, PyAny>>,
         runtime_bindings: Option<&RuntimeBindings>,
@@ -29,100 +30,165 @@ impl Bridge {
             }
         };
 
-        let mut needs_config_class = false;
-        let mut config_param_name = String::new();
-        for param in &runtime.entry_parameters {
-            let annotation = param.annotation.as_deref().unwrap_or("");
-            if param.name == "config" || annotation.contains("Config") {
-                needs_config_class = true;
-                config_param_name = param.name.clone();
-                break;
-            }
-        }
-
         let mut config_instance: Option<pyo3::Py<pyo3::PyAny>> = None;
-        if needs_config_class {
-            let config_params = if let Ok(Some(existing_config)) = config_dict.get_item("config") {
-                if let Ok(config_dict_value) = existing_config.cast::<PyDict>() {
-                    config_dict_value.clone()
-                } else {
-                    PyDict::new(py)
-                }
-            } else {
-                let params = PyDict::new(py);
-                for (key, value) in config_dict.iter() {
-                    let key_str = key.extract::<String>()?;
-                    if key_str != "data_store" && key_str != "store_path" {
-                        params.set_item(key, value)?;
+        let mut store_instance: Option<pyo3::Py<pyo3::PyAny>> = None;
+        let mut system_instance: Option<pyo3::Py<pyo3::PyAny>> = None;
+
+        for arg in args {
+            // Respect explicit config overrides first
+            if let Some(value) = config_dict.get_item(&arg.name).ok().flatten() {
+                kwargs.set_item(&arg.name, value)?;
+                continue;
+            }
+
+            match arg.source {
+                ArgumentSource::Config => {
+                    if config_instance.is_none() {
+                        let config_params =
+                            Self::extract_config_params(py, config_dict, store_instance.as_ref())?;
+                        let cfg = self.instantiate_config_class(
+                            py,
+                            &config_params,
+                            runtime.config.as_ref(),
+                        )?;
+                        config_instance = Some(cfg.unbind());
+                    }
+                    if let Some(cfg) = &config_instance {
+                        kwargs.set_item(&arg.name, cfg.bind(py))?;
                     }
                 }
-                params
-            };
+                ArgumentSource::Store
+                | ArgumentSource::StoreManifest
+                | ArgumentSource::StoreInline => {
+                    if store_instance.is_none() {
+                        let value = config_dict
+                            .get_item("store_path")
+                            .ok()
+                            .flatten()
+                            .or_else(|| config_dict.get_item("path").ok().flatten())
+                            .or_else(|| config_dict.get_item("store").ok().flatten())
+                            .or_else(|| {
+                                runtime
+                                    .resources
+                                    .as_ref()
+                                    .and_then(|res| res.store.as_ref())
+                            .and_then(|s| s.default_path.as_ref())
+                            .map(|p| PyString::new(py, p).into_any())
+                            });
 
-            let config_obj =
-                self.instantiate_config_class(py, &config_params, runtime.config.as_ref())?;
-            kwargs.set_item(&config_param_name, &config_obj)?;
-            config_instance = Some(config_obj.unbind());
-        }
-
-        for param in &runtime.entry_parameters {
-            let annotation = param.annotation.as_deref().unwrap_or("");
-            if param.name == "config" || annotation.contains("Config") {
-                continue;
-            }
-
-            if param.name == "data_store" || annotation.contains("DataStore") {
-                logger::step(&format!("Processing data_store parameter: {}", param.name));
-                let mut value = config_dict
-                    .get_item("store_path")?
-                    .or_else(|| config_dict.get_item(&param.name).ok().flatten());
-                if value.is_none() {
-                    value = config_dict.get_item("path").ok().flatten();
+                    if let Some(val) = value {
+                        let store = if let Some(cfg) = config_instance.as_ref() {
+                            let cfg_bound = cfg.bind(py);
+                            self.instantiate_data_store(
+                                py,
+                                &val,
+                                Some(&cfg_bound),
+                                runtime.config.as_ref(),
+                            )?
+                        } else {
+                            self.instantiate_data_store(py, &val, None, runtime.config.as_ref())?
+                        };
+                        store_instance = Some(store.unbind());
+                    } else if !arg.optional {
+                        return Err(BridgeError::Python(
+                            "Store path missing for plugin invocation".to_string(),
+                        ));
+                    }
                 }
 
-                if let Some(value) = value {
-                    let config_binding = config_instance.as_ref().map(|obj| obj.bind(py));
-                    let store_instance = match config_binding {
-                        Some(ref binding) => self.instantiate_data_store(
-                            py,
-                            &value,
-                            Some(binding),
-                            runtime.config.as_ref(),
-                        )?,
-                        None => {
-                            self.instantiate_data_store(py, &value, None, runtime.config.as_ref())?
-                        }
-                    };
-                    kwargs.set_item(&param.name, store_instance)?;
+                    if let Some(store) = &store_instance {
+                        kwargs.set_item(&arg.name, store.bind(py))?;
+                    }
                 }
-                continue;
-            }
-
-            if let Some(value) = config_dict.get_item(&param.name).ok().flatten() {
-                let path_alias = value.clone();
-                kwargs.set_item(&param.name, value)?;
-                if param.name == "folder_path" && !kwargs.contains("path")? {
-                    kwargs.set_item("path", path_alias)?;
+                ArgumentSource::System => {
+                    if system_instance.is_none() {
+                        system_instance = self.build_system_from_stdin(py, stdin_obj)?;
+                    }
+                    if let Some(system) = &system_instance {
+                        kwargs.set_item(&arg.name, system.bind(py))?;
+                    }
                 }
-            } else if param.required {
-                logger::warn(&format!(
-                    "Required parameter '{}' missing in config",
-                    param.name
-                ));
-            }
-        }
-
-        if let Some(stdin) = stdin_obj {
-            if runtime.entry_parameters.iter().any(|p| p.name == "stdin") {
-                kwargs.set_item("stdin", stdin)?;
-            } else {
-                logger::debug(
-                    "Plugin received stdin payload but exposes no 'stdin' parameter; skipping kwargs injection",
-                );
+                ArgumentSource::Stdin => {
+                    if let Some(stdin) = stdin_obj {
+                        kwargs.set_item(&arg.name, stdin)?;
+                    } else if !arg.optional {
+                        return Err(BridgeError::Python(
+                            "stdin payload required but not provided".to_string(),
+                        ));
+                    }
+                }
+                ArgumentSource::Path | ArgumentSource::ConfigPath => {
+                    let value = config_dict
+                        .get_item(&arg.name)
+                        .ok()
+                        .flatten()
+                        .or_else(|| config_dict.get_item("path").ok().flatten());
+                    if let Some(v) = value {
+                        kwargs.set_item(&arg.name, v)?;
+                    } else if let Some(default) = runtime
+                        .resources
+                        .as_ref()
+                        .and_then(|res| res.store.as_ref())
+                        .and_then(|s| s.default_path.as_ref())
+                    {
+                        kwargs.set_item(&arg.name, PyString::new(py, default))?;
+                    } else if !arg.optional {
+                        return Err(BridgeError::Python(format!(
+                            "Missing required path argument '{}'",
+                            arg.name
+                        )));
+                    }
+                }
+                ArgumentSource::Literal => {
+                    if let Some(default) = &arg.default {
+                        let py_val = json_value_to_py(py, default)?;
+                        kwargs.set_item(&arg.name, py_val.bind(py))?;
+                    }
+                }
+                ArgumentSource::Custom | ArgumentSource::Context => {
+                    if let Some(val) = config_dict.get_item(&arg.name).ok().flatten() {
+                        kwargs.set_item(&arg.name, val)?;
+                    } else if let Some(default) = &arg.default {
+                        let py_val = json_value_to_py(py, default)?;
+                        kwargs.set_item(&arg.name, py_val.bind(py))?;
+                    } else if !arg.optional {
+                        logger::warn(&format!(
+                            "Required parameter '{}' missing in config",
+                            arg.name
+                        ));
+                    }
+                }
             }
         }
 
         Ok(kwargs)
+    }
+
+    fn extract_config_params<'py>(
+        py: pyo3::Python<'py>,
+        config_dict: &pyo3::Bound<'py, PyDict>,
+        store_instance: Option<&pyo3::Py<pyo3::PyAny>>,
+    ) -> Result<pyo3::Bound<'py, PyDict>, BridgeError> {
+        if let Ok(Some(existing_config)) = config_dict.get_item("config") {
+            if let Ok(config_dict_value) = existing_config.cast::<PyDict>() {
+                return Ok(config_dict_value.clone());
+            }
+        }
+
+        let params = PyDict::new(py);
+        for (key, value) in config_dict.iter() {
+            let key_str = key.extract::<String>().unwrap_or_default();
+            if key_str == "data_store" || key_str == "store_path" || key_str == "path" {
+                continue;
+            }
+            params.set_item(key, value)?;
+        }
+
+        if let Some(store) = store_instance {
+            params.set_item("data_store", store.bind(py))?;
+        }
+
+        Ok(params)
     }
 
     pub(super) fn instantiate_config_class<'py>(
@@ -131,26 +197,34 @@ impl Bridge {
         config_params: &pyo3::Bound<'py, PyDict>,
         config_metadata: Option<&ConfigSpec>,
     ) -> Result<pyo3::Bound<'py, PyAny>, BridgeError> {
-        let config_meta = config_metadata
-            .ok_or_else(|| BridgeError::Python("Plugin config metadata missing".to_string()))?;
+        let config_meta = config_metadata.ok_or_else(|| {
+            BridgeError::Python("Plugin config metadata missing".to_string())
+        })?;
+        let model_path = config_meta
+            .model
+            .as_deref()
+            .ok_or_else(|| BridgeError::Python("Config model path missing".to_string()))?;
+        let (module, class_name) = split_qualified_target(model_path).ok_or_else(|| {
+            BridgeError::Python(format!("Invalid config model path: {}", model_path))
+        })?;
 
-        let config_module = PyModule::import(py, &config_meta.module).map_err(|e| {
+        let config_module = PyModule::import(py, &module).map_err(|e| {
             BridgeError::Python(format!(
                 "Failed to import config module '{}': {}",
-                config_meta.module, e
+                module, e
             ))
         })?;
-        let config_class = config_module.getattr(&config_meta.name).map_err(|e| {
+        let config_class = config_module.getattr(&class_name).map_err(|e| {
             BridgeError::Python(format!(
                 "Failed to get config class '{}': {}",
-                config_meta.name, e
+                class_name, e
             ))
         })?;
 
         config_class.call((), Some(&config_params)).map_err(|e| {
             BridgeError::Python(format!(
                 "Failed to instantiate config class '{}': {}",
-                config_meta.name, e
+                class_name, e
             ))
         })
     }
@@ -160,11 +234,12 @@ impl Bridge {
         py: pyo3::Python<'py>,
         value: &pyo3::Bound<'py, PyAny>,
         config_instance: Option<&pyo3::Bound<'py, PyAny>>,
-        config_metadata: Option<&ConfigSpec>,
+        _config_metadata: Option<&ConfigSpec>,
     ) -> Result<pyo3::Bound<'py, PyAny>, BridgeError> {
         let path = if let Ok(store_dict) = value.cast::<PyDict>() {
             let path = store_dict
                 .get_item("path")?
+                .or_else(|| store_dict.get_item("folder").ok().flatten())
                 .ok_or_else(|| BridgeError::Python("data_store path missing".to_string()))?
                 .extract::<String>()?;
             path
@@ -180,76 +255,78 @@ impl Bridge {
         let data_store_class = data_store_module.getattr("DataStore")?;
 
         if let Some(config) = config_instance {
-            let store_path = path.clone();
             let from_config = data_store_class
                 .getattr("from_plugin_config")
                 .map_err(|e| {
                     BridgeError::Python(format!("DataStore missing from_plugin_config: {}", e))
                 })?;
-            match from_config.call1((config, path)) {
+            match from_config.call1((config, path.clone())) {
                 Ok(store) => Ok(store),
-                Err(err) => {
-                    logger::debug(
-                        "DataStore.from_plugin_config failed; attempting targeted diagnostics",
-                    );
-                    logger::debug(&format!(
-                        "Config metadata present: {}",
-                        config_metadata.is_some()
-                    ));
-                    if let Some(class_obj) = resolve_config_class(py, Some(config), config_metadata)
-                    {
-                        if let Some(missing) =
-                            detect_missing_data_file_from_mapping(&class_obj, &store_path)
-                        {
-                            return Err(BridgeError::Python(format!(
-                                "Missing required ReEDS data file: {}. \
-Verify the data folder contains all expected outputs (did you unpack the full `inputs_case` directory?).",
-                                missing
-                            )));
-                        }
-                    } else if let Some(missing) =
-                        detect_missing_data_file_from_metadata(py, config_metadata, &store_path)
-                    {
-                        return Err(BridgeError::Python(format!(
-                            "Missing required ReEDS data file: {}. \
-Verify the data folder contains all expected outputs (did you unpack the full `inputs_case` directory?).",
-                            missing
-                        )));
-                    }
-                    Err(transform_data_store_error(py, err))
-                }
+                Err(err) => Err(transform_data_store_error(py, err)),
             }
         } else {
-            let store_path = path.clone();
-            match data_store_class.call1((path,)) {
-                Ok(store) => Ok(store),
-                Err(err) => {
-                    logger::debug(&format!(
-                        "DataStore(path) failed; config metadata present: {}",
-                        config_metadata.is_some()
-                    ));
-                    if let Some(missing) =
-                        detect_missing_data_file_from_metadata(py, config_metadata, &store_path)
-                    {
-                        Err(BridgeError::Python(format!(
-                            "Missing required ReEDS data file: {}. \
-Verify the data folder contains all expected outputs (did you unpack the full `inputs_case` directory?).",
-                            missing
-                        )))
-                    } else {
-                        Err(transform_data_store_error(py, err))
-                    }
-                }
-            }
+            data_store_class
+                .call1((path.clone(),))
+                .map_err(|err| transform_data_store_error(py, err))
         }
     }
+
+    fn build_system_from_stdin<'py>(
+        &self,
+        py: pyo3::Python<'py>,
+        stdin_obj: Option<&pyo3::Bound<'py, PyAny>>,
+    ) -> Result<Option<pyo3::Py<pyo3::PyAny>>, BridgeError> {
+        let Some(stdin) = stdin_obj else {
+            return Ok(None);
+        };
+        let json_module = PyModule::import(py, "json").map_err(|e| {
+            BridgeError::Import("json".to_string(), format!("Failed to import json: {}", e))
+        })?;
+        let dumps = json_module
+            .getattr("dumps")
+            .map_err(|e| BridgeError::Python(format!("json.dumps not available: {}", e)))?;
+        let json_str = dumps
+            .call1((stdin,))?
+            .extract::<String>()
+            .map_err(|e| BridgeError::Python(format!("Failed to serialize stdin: {}", e)))?;
+        let system_module = PyModule::import(py, "r2x_core.system")
+            .map_err(|e| BridgeError::Import("r2x_core.system".to_string(), format!("{}", e)))?;
+        let system_class = system_module.getattr("System").map_err(|e| {
+            BridgeError::Python(format!("Failed to access r2x_core.system.System: {}", e))
+        })?;
+        let from_json = system_class
+            .getattr("from_json")
+            .map_err(|e| BridgeError::Python(format!("System.from_json missing: {}", e)))?;
+        let system_obj = from_json.call1((json_str.as_bytes(),))?;
+        Ok(Some(system_obj.unbind()))
+    }
+}
+
+fn split_qualified_target(target: &str) -> Option<(String, String)> {
+    if let Some(idx) = target.rfind(':') {
+        Some((target[..idx].to_string(), target[idx + 1..].to_string()))
+    } else if let Some(idx) = target.rfind('.') {
+        Some((target[..idx].to_string(), target[idx + 1..].to_string()))
+    } else {
+        None
+    }
+}
+
+fn json_value_to_py(
+    py: pyo3::Python<'_>,
+    value: &serde_json::Value,
+) -> pyo3::PyResult<Py<pyo3::PyAny>> {
+    let json_module = PyModule::import(py, "json")?;
+    let loads = json_module.getattr("loads")?;
+    let json_str = serde_json::to_string(value).unwrap_or_else(|_| "null".to_string());
+    let obj = loads.call1((json_str,))?;
+    Ok(obj.unbind())
 }
 
 fn transform_data_store_error(py: pyo3::Python<'_>, err: pyo3::PyErr) -> BridgeError {
     if let Some(missing) = extract_missing_data_file(py, &err) {
         BridgeError::Python(format!(
-            "Missing required ReEDS data file: {}. \
-Verify the data folder contains all expected outputs (did you unpack the full `inputs_case` directory?).",
+            "Missing required data file: {}. Verify the data folder contains all expected outputs.",
             missing
         ))
     } else {
@@ -272,7 +349,7 @@ fn extract_missing_data_file(py: pyo3::Python<'_>, err: &pyo3::PyErr) -> Option<
                 repr.to_string()
             ));
         }
-        if ctx.is_instance_of::<PyFileNotFoundError>() {
+        if ctx.is_instance_of::<pyo3::exceptions::PyFileNotFoundError>() {
             if let Ok(text) = ctx.str() {
                 return Some(text.to_string());
             }
@@ -281,71 +358,4 @@ fn extract_missing_data_file(py: pyo3::Python<'_>, err: &pyo3::PyErr) -> Option<
         depth += 1;
     }
     None
-}
-
-fn detect_missing_data_file_from_mapping(
-    class_obj: &pyo3::Bound<'_, PyAny>,
-    folder_path: &str,
-) -> Option<String> {
-    logger::debug(&format!(
-        "Validating ReEDS data files under {}",
-        folder_path
-    ));
-    let loader = class_obj.getattr("load_file_mapping").ok()?;
-    let records = loader.call0().ok()?;
-    let records = records.cast::<PyList>().ok()?;
-    let base = Path::new(folder_path);
-
-    for record in records {
-        let record = record.cast::<PyDict>().ok()?;
-        let optional = record
-            .get_item("optional")
-            .ok()
-            .flatten()
-            .and_then(|val| val.extract::<bool>().ok())
-            .unwrap_or(false);
-        if optional {
-            continue;
-        }
-
-        let Some(fpath_obj) = record.get_item("fpath").ok().flatten() else {
-            continue;
-        };
-        let Ok(rel_path) = fpath_obj.extract::<String>() else {
-            continue;
-        };
-        let full_path = base.join(rel_path);
-        if !full_path.exists() {
-            logger::debug(&format!(
-                "Detected missing data file during ReEDS run: {}",
-                full_path.display()
-            ));
-            return Some(full_path.to_string_lossy().to_string());
-        }
-    }
-
-    None
-}
-
-fn detect_missing_data_file_from_metadata(
-    py: pyo3::Python<'_>,
-    metadata: Option<&ConfigSpec>,
-    folder_path: &str,
-) -> Option<String> {
-    let class_obj = resolve_config_class(py, None, metadata)?;
-    detect_missing_data_file_from_mapping(&class_obj, folder_path)
-}
-
-fn resolve_config_class<'py>(
-    py: pyo3::Python<'py>,
-    config_instance: Option<&pyo3::Bound<'py, PyAny>>,
-    metadata: Option<&ConfigSpec>,
-) -> Option<pyo3::Bound<'py, PyAny>> {
-    if let Some(instance) = config_instance {
-        return instance.getattr("__class__").ok();
-    }
-
-    let meta = metadata?;
-    let module = PyModule::import(py, &meta.module).ok()?;
-    module.getattr(&meta.name).ok()
 }

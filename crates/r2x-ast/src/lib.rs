@@ -397,7 +397,16 @@ reeds = r2x_reeds.plugins:register_plugin
     }
     #[test]
     fn test_plugin_extraction() {
-        use r2x_manifest::{IOContract, IOSlot, ImplementationType, InvocationSpec, PluginKind};
+        use r2x_manifest::{
+            IOContract, IOSlot, IOSlotKind, ImplementationType, InvocationSpec, PluginKind,
+        };
+        use std::collections::HashMap;
+        let io_slot = |kind: IOSlotKind| IOSlot {
+            kind,
+            name: None,
+            optional: false,
+            description: None,
+        };
 
         let plugin = PluginSpec {
             name: "test-parser".to_string(),
@@ -410,13 +419,15 @@ reeds = r2x_reeds.plugins:register_plugin
                 call: vec![],
             },
             io: IOContract {
-                consumes: vec![IOSlot::StoreFolder, IOSlot::ConfigFile],
-                produces: vec![IOSlot::System],
+                consumes: vec![io_slot(IOSlotKind::StoreFolder), io_slot(IOSlotKind::ConfigFile)],
+                produces: vec![io_slot(IOSlotKind::System)],
+                description: None,
             },
             resources: None,
             upgrade: None,
             description: None,
             tags: vec![],
+            metadata: HashMap::new(),
         };
 
         assert_eq!(plugin.name, "test-parser");
