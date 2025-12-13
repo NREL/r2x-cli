@@ -45,21 +45,51 @@ impl Bridge {
             };
 
             logger::debug("Building kwargs for plugin invocation");
-            let kwargs =
-                self.build_kwargs(py, &config_dict, stdin_obj.as_ref(), runtime_bindings)?;
+            let constructor_args = runtime_bindings
+                .map(|r| r.constructor_args.as_slice())
+                .unwrap_or(&[]);
+            let kwargs = self.build_kwargs(
+                py,
+                constructor_args,
+                &config_dict,
+                stdin_obj.as_ref(),
+                runtime_bindings,
+            )?;
+
+            let call_kwargs = runtime_bindings
+                .map(|r| {
+                    self.build_kwargs(
+                        py,
+                        r.call_args.as_slice(),
+                        &config_dict,
+                        stdin_obj.as_ref(),
+                        runtime_bindings,
+                    )
+                })
+                .transpose()?
+                .unwrap_or_else(|| PyDict::new(py));
 
             logger::debug("Starting plugin invocation");
             let call_start = Instant::now();
             let result_py = if callable_path.contains('.') {
-                Self::invoke_class_callable(&module, callable_path, stdin_obj.as_ref(), &kwargs)?
+                self.invoke_class_callable(
+                    py,
+                    &module,
+                    callable_path,
+                    stdin_obj.as_ref(),
+                    &kwargs,
+                    &call_kwargs,
+                    runtime_bindings,
+                )?
             } else {
                 Self::invoke_function_callable(
                     py,
                     &module,
                     callable_path,
                     stdin_obj.as_ref(),
-                    &kwargs,
+                    &call_kwargs,
                     &json_module,
+                    runtime_bindings,
                 )?
             };
             let call_elapsed = call_start.elapsed();
@@ -113,10 +143,14 @@ impl Bridge {
     }
 
     fn invoke_class_callable<'py>(
+        &self,
+        _py: pyo3::Python<'py>,
         module: &pyo3::Bound<'py, PyModule>,
         callable_path: &str,
         stdin_obj: Option<&pyo3::Bound<'py, PyAny>>,
-        kwargs: &pyo3::Bound<'py, PyDict>,
+        ctor_kwargs: &pyo3::Bound<'py, PyDict>,
+        call_kwargs: &pyo3::Bound<'py, PyDict>,
+        runtime_bindings: Option<&RuntimeBindings>,
     ) -> Result<pyo3::Bound<'py, PyAny>, BridgeError> {
         let parts: Vec<&str> = callable_path.split('.').collect();
         if parts.len() != 2 {
@@ -132,7 +166,7 @@ impl Bridge {
             ))
         })?;
 
-        let instance = class.call((), Some(kwargs)).map_err(|err| {
+        let instance = class.call((), Some(ctor_kwargs)).map_err(|err| {
             let raw_msg = err.to_string();
             let mut formatted = format_python_error(
                 class.py(),
@@ -153,24 +187,14 @@ impl Bridge {
             ))
         })?;
 
-        let accepts_stdin = if stdin_obj.is_some() {
-            match method_accepts_stdin(&method) {
-                Ok(result) => result,
-                Err(err) => {
-                    logger::debug(&format!(
-                        "Failed to inspect method '{}.{}' signature for stdin support: {}",
-                        class_name, method_name, err
-                    ));
-                    false
-                }
-            }
-        } else {
-            false
-        };
+        let mut invoke_with_kwargs = call_kwargs.len()? > 0;
+        if !invoke_with_kwargs && runtime_bindings.map(|r| !r.call_args.is_empty()).unwrap_or(false)
+        {
+            invoke_with_kwargs = true;
+        }
 
-        if accepts_stdin {
-            let stdin = stdin_obj.expect("checked Some above");
-            method.call1((stdin,)).map_err(|e| {
+        if invoke_with_kwargs {
+            method.call((), Some(call_kwargs)).map_err(|e| {
                 BridgeError::Python(format_python_error(
                     method.py(),
                     e,
@@ -178,19 +202,45 @@ impl Bridge {
                 ))
             })
         } else {
-            if stdin_obj.is_some() {
-                logger::debug(&format!(
-                    "Method '{}.{}' does not declare 'system'/'stdin'; skipping stdin payload",
-                    class_name, method_name
-                ));
+            let accepts_stdin = if stdin_obj.is_some() {
+                match method_accepts_stdin(&method) {
+                    Ok(result) => result,
+                    Err(err) => {
+                        logger::debug(&format!(
+                            "Failed to inspect method '{}.{}' signature for stdin support: {}",
+                            class_name, method_name, err
+                        ));
+                        false
+                    }
+                }
+            } else {
+                false
+            };
+
+            if accepts_stdin {
+                let stdin = stdin_obj.expect("checked Some above");
+                method.call1((stdin,)).map_err(|e| {
+                    BridgeError::Python(format_python_error(
+                        method.py(),
+                        e,
+                        &format!("Method '{}.{}' failed", class_name, method_name),
+                    ))
+                })
+            } else {
+                if stdin_obj.is_some() {
+                    logger::debug(&format!(
+                        "Method '{}.{}' does not declare 'system'/'stdin'; skipping stdin payload",
+                        class_name, method_name
+                    ));
+                }
+                method.call0().map_err(|e| {
+                    BridgeError::Python(format_python_error(
+                        method.py(),
+                        e,
+                        &format!("Method '{}.{}' failed", class_name, method_name),
+                    ))
+                })
             }
-            method.call0().map_err(|e| {
-                BridgeError::Python(format_python_error(
-                    method.py(),
-                    e,
-                    &format!("Method '{}.{}' failed", class_name, method_name),
-                ))
-            })
         }
     }
 
@@ -201,6 +251,7 @@ impl Bridge {
         stdin_obj: Option<&pyo3::Bound<'py, PyAny>>,
         kwargs: &pyo3::Bound<'py, PyDict>,
         json_module: &pyo3::Bound<'py, PyModule>,
+        runtime_bindings: Option<&RuntimeBindings>,
     ) -> Result<pyo3::Bound<'py, PyAny>, BridgeError> {
         logger::debug(&format!("Function pattern: {}", callable_path));
         let func = module.getattr(callable_path).map_err(|e| {
@@ -212,17 +263,23 @@ impl Bridge {
         })?;
 
         logger::step(&format!("Function kwargs before system: {:?}", kwargs));
-        if let Some(stdin) = stdin_obj {
-            logger::step("Function has stdin - deserializing to System object");
-            let dumps = json_module.getattr("dumps")?;
-            let json_str = dumps.call1((stdin,))?.extract::<String>()?;
-            let json_bytes = json_str.as_bytes();
+        let has_system_kwarg = kwargs.get_item("system").is_ok();
+        if !has_system_kwarg && stdin_obj.is_some() {
+            let expects_system = runtime_bindings
+                .map(|r| r.call_args.iter().any(|a| a.name == "system"))
+                .unwrap_or(false);
+            if expects_system {
+                logger::step("Function has stdin - deserializing to System object");
+                let dumps = json_module.getattr("dumps")?;
+                let json_str = dumps.call1((stdin_obj.unwrap(),))?.extract::<String>()?;
+                let json_bytes = json_str.as_bytes();
 
-            let system_module = PyModule::import(py, "r2x_core.system")?;
-            let system_class = system_module.getattr("System")?;
-            let from_json = system_class.getattr("from_json")?;
-            let system_obj = from_json.call1((json_bytes,))?;
-            kwargs.set_item("system", system_obj)?;
+                let system_module = PyModule::import(py, "r2x_core.system")?;
+                let system_class = system_module.getattr("System")?;
+                let from_json = system_class.getattr("from_json")?;
+                let system_obj = from_json.call1((json_bytes,))?;
+                kwargs.set_item("system", system_obj)?;
+            }
         }
 
         logger::step(&format!("Final function kwargs: {:?}", kwargs));

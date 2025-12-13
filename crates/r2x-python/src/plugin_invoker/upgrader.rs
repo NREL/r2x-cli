@@ -32,7 +32,10 @@ impl Bridge {
                 .map_err(|e| BridgeError::Python(format!("Config must be a JSON object: {}", e)))?
                 .clone();
 
-            let kwargs = self.build_kwargs(py, &config_dict, None, runtime_bindings)?;
+            let ctor_args = runtime_bindings
+                .map(|r| r.constructor_args.as_slice())
+                .unwrap_or(&[]);
+            let kwargs = self.build_kwargs(py, ctor_args, &config_dict, None, runtime_bindings)?;
             let upgrader_class = module.getattr(callable_path).map_err(|e| {
                 BridgeError::Python(format!(
                     "Failed to get upgrader class '{}': {}",
@@ -88,9 +91,9 @@ impl Bridge {
 fn find_arg_value<'a>(plugin: &'a PluginSpec, name: &str) -> Option<&'a str> {
     let upgrade = plugin.upgrade.as_ref()?;
     match name {
-        "version_strategy" => upgrade.version_strategy_json.as_deref(),
-        "version_reader" => upgrade.version_reader_json.as_deref(),
-        "upgrade_steps" => upgrade.upgrade_steps_json.as_deref(),
+        "version_strategy" => Some(upgrade.strategy.as_str()),
+        "version_reader" => Some(upgrade.reader.as_str()),
+        "upgrade_steps" => None,
         _ => None,
     }
 }
