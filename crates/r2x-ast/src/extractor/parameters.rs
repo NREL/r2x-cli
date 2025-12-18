@@ -68,7 +68,8 @@ impl PluginExtractor {
     fn find_class_signature(&self, content: &str, class_name: &str) -> Option<String> {
         let sg = AstGrep::new(content, Python);
         let root = sg.root();
-        let pattern = format!("class {}(", class_name);
+        // Use ast-grep pattern to match class definitions
+        let pattern = format!("class {}($$$BASES)", class_name);
         let mut matches = root.find_all(pattern.as_str());
         matches.next().map(|m| m.text().to_string())
     }
@@ -76,9 +77,42 @@ impl PluginExtractor {
     fn find_function_signature(&self, content: &str, function_name: &str) -> Option<String> {
         let sg = AstGrep::new(content, Python);
         let root = sg.root();
-        let pattern = format!("def {}(", function_name);
-        let mut matches = root.find_all(pattern.as_str());
-        matches.next().map(|m| m.text().to_string())
+
+        // Use tree-sitter to find function_definition nodes
+        let function_defs = root
+            .children()
+            .filter(|node| node.kind() == "function_definition");
+
+        for func_node in function_defs {
+            // Get the function name from the identifier
+            if let Some(name_node) = func_node.field("name") {
+                let found_name = name_node.text();
+                eprintln!("DEBUG: Found function in AST: {}", found_name);
+
+                if found_name.to_string() == function_name {
+                    eprintln!("DEBUG: Match! Extracting signature for: {}", function_name);
+                    // Get the parameters field from the function_definition
+                    if let Some(params_node) = func_node.field("parameters") {
+                        let params_text = params_node.text().to_string();
+                        eprintln!(
+                            "DEBUG: Parameters text: {}",
+                            params_text.chars().take(100).collect::<String>()
+                        );
+                        // Build the signature: def function_name(params)
+                        let signature = format!(
+                            "def {}({})",
+                            function_name,
+                            params_text.trim_start_matches('(').trim_end_matches(')')
+                        );
+                        return Some(signature);
+                    }
+                }
+            }
+        }
+
+        eprintln!("DEBUG: Function '{}' not found in AST", function_name);
+
+        None
     }
 
     fn find_init_signature(&self, content: &str, class_name: &str) -> Option<String> {
