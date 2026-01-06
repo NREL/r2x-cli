@@ -40,8 +40,22 @@ impl AstDiscovery {
         logger::debug(&format!("AST discovery started for: {}", package_name_full));
 
         // Find the plugins.py file using entry_points.txt
-        let (plugins_py, plugin_module) =
-            Self::find_plugins_py_via_entry_points(package_path, package_name_full, venv_path)?;
+        let (plugins_py, plugin_module) = match Self::find_plugins_py_via_entry_points(
+            package_path,
+            package_name_full,
+            venv_path,
+        ) {
+            Ok(result) => result,
+            Err(e) => {
+                // If no entry_points.txt or no r2x_plugin entry point found,
+                // this package doesn't define any plugins - return empty list
+                logger::debug(&format!(
+                    "No r2x_plugin entry point found for '{}': {}",
+                    package_name_full, e
+                ));
+                return Ok((Vec::new(), Vec::new()));
+            }
+        };
         logger::debug(&format!("Found plugins.py at: {:?}", plugins_py));
 
         // Phase 1: Extract plugins with constructor_args
@@ -184,7 +198,7 @@ impl AstDiscovery {
             }
         }
         Err(anyhow!(
-            "Could not find entry_points.txt for package: {}",
+            "Package '{}' has no entry_points.txt (not an r2x plugin package)",
             package_name_full
         ))
     }
@@ -216,7 +230,7 @@ impl AstDiscovery {
             }
         }
         Err(anyhow!(
-            "No [r2x_plugin] entry point found in entry_points.txt"
+            "Package has entry_points.txt but no [r2x_plugin] section (not an r2x plugin package)"
         ))
     }
     /// Scan entire package directory for decorator registrations

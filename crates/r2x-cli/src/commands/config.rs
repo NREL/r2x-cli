@@ -1,5 +1,6 @@
 use crate::config_manager::Config;
 use crate::logger;
+use crate::plugins::get_package_info;
 use crate::python_bridge::configure_python_venv;
 use crate::GlobalOpts;
 use clap::Subcommand;
@@ -142,6 +143,26 @@ pub fn handle_config(action: Option<ConfigAction>, opts: GlobalOpts) {
                 }
                 if let Some(ref core_ver) = config.r2x_core_version {
                     println!("  {}: {}", "r2x-core-version".cyan(), core_ver);
+                }
+
+                // Show installed r2x-core version
+                let python_path = config.get_venv_python_path();
+                if PathBuf::from(&python_path).exists() {
+                    // Try to get uv_path from config, or use "uv" from PATH
+                    let uv_path = config.uv_path.as_deref().unwrap_or("uv");
+                    match get_package_info(uv_path, &python_path, "r2x-core") {
+                        Ok((Some(version), _)) => {
+                            println!("  {}: {}", "r2x-core-version".cyan(), version);
+                        }
+                        Ok((None, _)) => {
+                            println!("  {}: {}", "r2x-core-version".cyan(), "not found".dimmed());
+                        }
+                        Err(_) => {
+                            logger::debug("Could not query r2x-core package info");
+                        }
+                    }
+                } else {
+                    logger::debug("Venv does not exist, skipping r2x-core version check");
                 }
             }
             Err(e) => {
