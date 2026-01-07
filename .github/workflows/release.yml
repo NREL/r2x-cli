@@ -58,18 +58,18 @@ jobs:
           target_triple: aarch64-apple-darwin
           py_version: 3.12
 
-    build-shim-macos-intel:
-      if: ${{ !github.event.pull_request }}
-      runs-on: macos-15-intel
-      steps:
-        - uses: actions/checkout@v6
-          with:
-            persist-credentials: false
-            submodules: recursive
-        - uses: ./.github/actions/build-python-shim
-          with:
-            target_triple: x86_64-apple-darwin
-            py_version: 3.12
+  build-shim-macos-intel:
+    if: ${{ !github.event.pull_request }}
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+          submodules: recursive
+      - uses: ./.github/actions/build-python-shim
+        with:
+          target_triple: x86_64-apple-darwin
+          py_version: 3.12
 
   build-shim-linux-x86:
     if: ${{ !github.event.pull_request }}
