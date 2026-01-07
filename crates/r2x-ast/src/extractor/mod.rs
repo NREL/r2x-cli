@@ -397,6 +397,7 @@ impl PluginExtractor {
         match kind {
             PluginKind::Parser => Some("build_system".to_string()),
             PluginKind::Exporter => Some("export".to_string()),
+            PluginKind::Translation => Some("run".to_string()),
             _ => None,
         }
     }
