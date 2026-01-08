@@ -14,18 +14,11 @@ use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use which::which;
 
 #[cfg(windows)]
 const PYTHON_BIN_DIR_NAME: &str = "Scripts";
 #[cfg(not(windows))]
 const PYTHON_BIN_DIR_NAME: &str = "bin";
-#[cfg(windows)]
-const SYSTEM_PYTHON_CANDIDATES: &[&str] = &["python.exe", "py.exe"];
-#[cfg(not(windows))]
-const SYSTEM_PYTHON_CANDIDATES: &[&str] = &["python3", "python"];
-const REQUIRED_PYTHON_MAJOR: i32 = 3;
-const REQUIRED_PYTHON_MINOR: i32 = 12;
 
 pub struct Bridge {}
 
@@ -374,8 +367,8 @@ pub fn configure_python_venv() -> Result<PythonEnvironment, BridgeError> {
     }
 
     if python_path.as_os_str().is_empty() || !python_path.exists() {
-        logger::warn("Python binary not found in configured venv; attempting system fallback");
-        if let Some((fallback, home)) = find_system_python() {
+        logger::warn("Python binary not found in configured venv; attempting uv-managed Python fallback");
+        if let Some((fallback, home)) = find_uv_python(&config)? {
             return Ok(PythonEnvironment {
                 interpreter: fallback,
                 python_home: Some(home),
@@ -443,63 +436,71 @@ fn resolve_python_home(venv_path: &Path) -> Option<PathBuf> {
     None
 }
 
-fn detect_python_runtime(
-    python_bin: &Path,
-) -> Option<(PathBuf, i32, i32)> {
-    let output = Command::new(python_bin)
+/// Find and use uv-managed Python instead of system Python
+/// This avoids conflicts with system Python installations and the Windows Store popup
+fn find_uv_python(config: &Config) -> Result<Option<(PathBuf, PathBuf)>, BridgeError> {
+    let uv_path = config.uv_path.as_ref().ok_or_else(|| {
+        BridgeError::Initialization("UV path not configured".to_string())
+    })?;
+
+    // Get the Python version from config, or default to 3.12
+    let python_version = config.python_version.as_deref().unwrap_or("3.12");
+
+    logger::debug(&format!(
+        "Attempting to use uv-managed Python {}",
+        python_version
+    ));
+
+    // Use `uv run python` to get the Python path
+    // This ensures we use uv's managed Python installations
+    let output = Command::new(uv_path)
+        .arg("run")
+        .arg("--python")
+        .arg(python_version)
+        .arg("python")
         .arg("-c")
         .arg(
-            "import sys\nprint(sys.base_prefix)\nprint(sys.version_info.major)\nprint(sys.version_info.minor)",
+            "import sys; print(sys.executable); print(sys.base_prefix)",
         )
         .output()
-        .ok()?;
+        .map_err(|e| {
+            BridgeError::Initialization(format!("Failed to run uv python: {}", e))
+        })?;
+
     if !output.status.success() {
         logger::debug(&format!(
-            "Failed to probe python runtime (status {:?})",
+            "Failed to probe uv-managed python (status {:?})",
             output.status.code()
         ));
-        return None;
+        return Ok(None);
     }
+
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let mut lines = stdout
+    let mut lines: Vec<String> = stdout
         .lines()
         .map(|s| s.trim().to_string())
-        .collect::<Vec<_>>();
-    if lines.len() < 3 {
-        return None;
-    }
-    let minor = lines
-        .pop()
-        .and_then(|v| v.parse::<i32>().ok())
-        .unwrap_or(0);
-    let major = lines
-        .pop()
-        .and_then(|v| v.parse::<i32>().ok())
-        .unwrap_or(0);
-    let prefix = PathBuf::from(lines.pop().unwrap_or_default());
-    Some((prefix, major, minor))
-}
+        .collect();
 
-fn find_system_python() -> Option<(PathBuf, PathBuf)> {
-    for candidate in SYSTEM_PYTHON_CANDIDATES {
-        if let Ok(path) = which(candidate) {
-            if let Some((home, major, minor)) = detect_python_runtime(&path) {
-                if major == REQUIRED_PYTHON_MAJOR && minor == REQUIRED_PYTHON_MINOR {
-                    logger::warn(&format!(
-                        "Falling back to system Python at {}",
-                        path.display()
-                    ));
-                    return Some((path, home));
-                } else {
-                    logger::debug(&format!(
-                        "Skipping system python {} (version {}.{})",
-                        path.display(),
-                        major,
-                        minor
-                    ));
-                }
-            }
-        }
+    if lines.len() < 2 {
+        logger::debug("Unexpected output from uv python probe");
+        return Ok(None);
     }
-    None
+
+    let prefix = PathBuf::from(lines.pop().unwrap_or_default());
+    let executable = PathBuf::from(lines.pop().unwrap_or_default());
+
+    if !executable.exists() {
+        logger::debug(&format!(
+            "UV-managed Python executable does not exist: {}",
+            executable.display()
+        ));
+        return Ok(None);
+    }
+
+    logger::warn(&format!(
+        "Using uv-managed Python at {}",
+        executable.display()
+    ));
+
+    Ok(Some((executable, prefix)))
 }
