@@ -854,6 +854,7 @@ version = "0.0.7"
 dependencies = [
  "once_cell",
  "pyo3",
+ "pyo3-build-config",
  "r2x-config",
  "r2x-logger",
  "r2x-manifest",
