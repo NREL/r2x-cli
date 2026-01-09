@@ -73,8 +73,8 @@ case "${TARGET_TRIPLE}" in
         SRC_PATH="${PY_PREFIX}/lib/${LIB_NAME}"
         ;;
     *unknown-linux-gnu*|*unknown-linux-musl*)
-        LIB_NAME="libpython${PY_SUFFIX}.so"
-        SRC_PATH="${PY_PREFIX}/lib/${LIB_NAME}"
+        LIB_NAME="libpython${PY_SUFFIX}.so.1.0"
+        SRC_PATH="${PY_PREFIX}/lib/libpython${PY_SUFFIX}.so"
         ;;
     *pc-windows-msvc*|*windows-gnu*)
         CLEAN_SUFFIX="${PY_SUFFIX/.}"
@@ -95,6 +95,7 @@ if [[ ! -f "${SRC_PATH}" ]]; then
     exit 1
 fi
 
+echo "Copying Python library as ${LIB_NAME}..."
 cp "${SRC_PATH}" "${OUT_DIR}/${LIB_NAME}"
 cp "${SRC_PATH}" "${SHIM_DIST_DIR}/${LIB_NAME}"
 
@@ -102,11 +103,7 @@ if [[ "${TARGET_TRIPLE}" == *"apple-darwin"* ]]; then
     install_name_tool -id "@rpath/${LIB_NAME}" "${OUT_DIR}/${LIB_NAME}"
 fi
 
-if [[ "${TARGET_TRIPLE}" == *"linux"* ]]; then
-    SONAME="${LIB_NAME}.1.0"
-    echo "Creating symlink ${SONAME} -> ${LIB_NAME} for Linux SONAME compatibility..."
-    ln -sf "${LIB_NAME}" "${OUT_DIR}/${SONAME}"
-fi
+
 
 for shim_name in "${SHIM_NAMES[@]}"; do
     if [[ ! -f "${SHIM_DIST_DIR}/${shim_name}" ]]; then
