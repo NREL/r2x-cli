@@ -1,4 +1,4 @@
-use super::RunError;
+use crate::commands::run::RunError;
 use crate::errors::PipelineError;
 use crate::logger;
 use crate::package_verification;
@@ -203,7 +203,7 @@ fn run_pipeline(
             pipeline_overrides.as_deref(),
         )?;
 
-        let target = super::build_call_target(&bindings)?;
+        let target = crate::commands::run::build_call_target(&bindings)?;
         let bridge = Bridge::get()?;
         logger::debug(&format!("Invoking: {}", target));
         logger::debug(&format!("Config: {}", final_config_json));
@@ -217,11 +217,11 @@ fn run_pipeline(
                         plugin_name,
                         step_num,
                         total_steps,
-                        super::format_duration(elapsed)
+                        crate::commands::run::format_duration(elapsed)
                     ));
                     if logger::get_verbosity() > 0 {
                         if let Some(timings) = &inv_result.timings {
-                            super::print_plugin_timing_breakdown(timings);
+                            crate::commands::run::print_plugin_timing_breakdown(timings);
                         }
                     }
                     inv_result
@@ -233,7 +233,7 @@ fn run_pipeline(
                         plugin_name,
                         step_num,
                         total_steps,
-                        super::format_duration(elapsed)
+                        crate::commands::run::format_duration(elapsed)
                     ));
                     return Err(RunError::Bridge(e));
                 }
@@ -253,7 +253,7 @@ fn run_pipeline(
         "{}",
         format!(
             "Finished in: {}",
-            super::format_duration(pipeline_start.elapsed())
+            crate::commands::run::format_duration(pipeline_start.elapsed())
         )
         .green()
         .bold()

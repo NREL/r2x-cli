@@ -215,7 +215,9 @@ impl PipelineConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::errors::PipelineError;
+    use crate::pipeline_config::PipelineConfig;
+    use std::collections::HashMap;
     use std::fs;
     use tempfile::TempDir;
 

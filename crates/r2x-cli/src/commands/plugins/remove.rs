@@ -1,4 +1,4 @@
-use super::setup_config;
+use crate::commands::plugins::setup_config;
 use crate::logger;
 use crate::r2x_manifest::Manifest;
 use crate::GlobalOpts;

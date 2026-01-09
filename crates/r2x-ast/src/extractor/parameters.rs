@@ -1,6 +1,9 @@
 #![allow(private_interfaces)]
 
-use super::*;
+use crate::extractor::PluginExtractor;
+use anyhow::{anyhow, Result};
+use ast_grep_core::AstGrep;
+use ast_grep_language::Python;
 use r2x_logger::debug;
 
 pub(super) struct ParameterEntry {
@@ -90,7 +93,7 @@ impl PluginExtractor {
                 let found_name = name_node.text();
                 debug(&format!("Found function in AST: {}", found_name));
 
-                if found_name.to_string() == function_name {
+                if found_name == function_name {
                     debug(&format!(
                         "Match! Extracting signature for: {}",
                         function_name
@@ -131,8 +134,7 @@ impl PluginExtractor {
 
             if !in_target_class {
                 if let Some(rest) = trimmed.strip_prefix("class ") {
-                    if rest.starts_with(class_name) {
-                        let after_name = &rest[class_name.len()..];
+                    if let Some(after_name) = rest.strip_prefix(class_name) {
                         if after_name.starts_with('(') || after_name.starts_with(':') {
                             in_target_class = true;
                             class_indent = line.chars().take_while(|c| c.is_whitespace()).count();

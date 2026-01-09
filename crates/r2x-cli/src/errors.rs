@@ -30,7 +30,7 @@ pub enum PipelineError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::errors::PipelineError;
 
     #[test]
     fn test_pipeline_error_display() {

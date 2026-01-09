@@ -817,6 +817,7 @@ name = "r2x-config"
 version = "0.0.3"
 dependencies = [
  "dirs",
+ "r2x-logger",
  "serde",
  "toml",
  "which",

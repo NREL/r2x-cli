@@ -1,4 +1,4 @@
-use super::setup_config;
+use crate::commands::plugins::setup_config;
 use crate::logger;
 use crate::plugins::{
     discovery::{discover_and_register_entry_points_with_deps, DiscoveryOptions},

@@ -176,7 +176,7 @@ fn add_git_ref(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::plugins::package_spec::{build_package_spec, expand_tilde, extract_package_name};
 
     #[test]
     fn test_extract_package_name_pypi() {

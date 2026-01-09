@@ -150,7 +150,7 @@ pub fn handle_init(filename: Option<String>, _opts: GlobalOpts) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::commands::init::{DEFAULT_FILENAME, PIPELINE_TEMPLATE};
 
     #[test]
     fn test_default_filename() {

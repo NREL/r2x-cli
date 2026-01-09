@@ -1,4 +1,4 @@
-use super::{PluginCommand, RunError};
+use crate::commands::run::{PluginCommand, RunError};
 use crate::help::show_plugin_help;
 use crate::logger;
 use crate::package_verification;
@@ -85,7 +85,7 @@ fn run_plugin(plugin_name: &str, args: &[String], opts: &GlobalOpts) -> Result<(
     let config_json = serde_json::to_string(&config_map)
         .map_err(|e| RunError::Config(format!("Failed to serialize config: {}", e)))?;
 
-    let target = super::build_call_target(&bindings)?;
+    let target = crate::commands::run::build_call_target(&bindings)?;
 
     let bridge = Bridge::get()?;
     logger::debug(&format!("Invoking plugin with target: {}", target));
@@ -98,7 +98,10 @@ fn run_plugin(plugin_name: &str, args: &[String], opts: &GlobalOpts) -> Result<(
         timings,
     } = invocation_result;
     let elapsed = start.elapsed();
-    let duration_msg = format!("({})", super::format_duration(elapsed).dimmed());
+    let duration_msg = format!(
+        "({})",
+        crate::commands::run::format_duration(elapsed).dimmed()
+    );
 
     if !result.is_empty() && result != "null" {
         if opts.suppress_stdout() {
@@ -115,7 +118,7 @@ fn run_plugin(plugin_name: &str, args: &[String], opts: &GlobalOpts) -> Result<(
         ));
 
         if let Some(timings) = timings {
-            super::print_plugin_timing_breakdown(&timings);
+            crate::commands::run::print_plugin_timing_breakdown(&timings);
         }
     }
 

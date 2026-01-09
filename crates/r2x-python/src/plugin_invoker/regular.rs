@@ -1,9 +1,9 @@
-use super::{
-    logger, BridgeError, PluginInvocationResult, PluginInvocationTimings, RuntimeBindings,
-};
-use crate::Bridge;
+use crate::plugin_invoker::{PluginInvocationResult, PluginInvocationTimings};
+use crate::{Bridge, BridgeError};
 use pyo3::types::{PyAny, PyAnyMethods, PyDict, PyModule};
 use pyo3::PyResult;
+use r2x_logger as logger;
+use r2x_manifest::runtime::RuntimeBindings;
 use std::time::{Duration, Instant};
 
 impl Bridge {

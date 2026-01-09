@@ -1,8 +1,9 @@
-use super::*;
-use crate::Bridge;
+use crate::{Bridge, BridgeError};
 use pyo3::exceptions::PyFileNotFoundError;
-use pyo3::types::{PyDict, PyList, PyModule};
+use pyo3::prelude::PyAny;
+use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods, PyList, PyModule};
 use r2x_logger as logger;
+use r2x_manifest::runtime::RuntimeBindings;
 use r2x_manifest::ConfigSpec;
 use std::path::Path;
 
@@ -93,8 +94,8 @@ impl Bridge {
 
                 if let Some(value) = value {
                     let config_binding = config_instance.as_ref().map(|obj| obj.bind(py));
-                    let store_instance = match config_binding {
-                        Some(ref binding) => self.instantiate_data_store(
+                    let store_instance = match config_binding.as_ref() {
+                        Some(binding) => self.instantiate_data_store(
                             py,
                             &value,
                             Some(binding),
@@ -166,7 +167,7 @@ impl Bridge {
             ))
         })?;
 
-        config_class.call((), Some(&config_params)).map_err(|e| {
+        config_class.call((), Some(config_params)).map_err(|e| {
             BridgeError::Python(format!(
                 "Failed to instantiate config class '{}': {}",
                 config_meta.name, e
@@ -285,11 +286,7 @@ fn extract_missing_data_file(py: pyo3::Python<'_>, err: &pyo3::PyErr) -> Option<
             break;
         }
         if let Ok(repr) = ctx.str() {
-            logger::debug(&format!(
-                "Python exception context[{}]: {}",
-                depth,
-                repr.to_string()
-            ));
+            logger::debug(&format!("Python exception context[{}]: {}", depth, repr));
         }
         if ctx.is_instance_of::<PyFileNotFoundError>() {
             if let Ok(text) = ctx.str() {

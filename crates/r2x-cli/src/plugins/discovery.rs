@@ -182,7 +182,7 @@ pub fn discover_and_register_entry_points_with_deps(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::plugins::utils;
 
     #[test]
     fn test_looks_like_r2x_plugin() {

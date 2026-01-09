@@ -3,10 +3,10 @@
 //! This module provides compile-time constants for directories and files that differ
 //! between Windows and Unix-like systems in Python virtual environments.
 
-use super::errors::BridgeError;
+use crate::errors::BridgeError;
 use r2x_logger as logger;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 /// The name of the library directory in a Python venv (e.g., "Lib" on Windows, "lib" on Unix)
 #[cfg(windows)]
@@ -34,7 +34,7 @@ const PYTHON_EXE_CANDIDATES: &[&str] = &["python.exe", "python3.exe", "python3.1
 // Windows
 // .venv/Lib/site-packages
 
-pub fn resolve_site_package_path(venv_path: &PathBuf) -> Result<PathBuf, BridgeError> {
+pub fn resolve_site_package_path(venv_path: &Path) -> Result<PathBuf, BridgeError> {
     logger::debug(&format!(
         "Resolving site-packages path for venv: {}",
         venv_path.display()
@@ -136,7 +136,7 @@ pub fn resolve_site_package_path(venv_path: &PathBuf) -> Result<PathBuf, BridgeE
     }
 }
 
-pub fn resolve_python_path(venv_path: &PathBuf) -> Result<PathBuf, BridgeError> {
+pub fn resolve_python_path(venv_path: &Path) -> Result<PathBuf, BridgeError> {
     // validate venv path is a valid directory
     if !venv_path.is_dir() {
         return Err(BridgeError::VenvNotFound(venv_path.to_path_buf()));
@@ -177,8 +177,12 @@ pub fn resolve_python_path(venv_path: &PathBuf) -> Result<PathBuf, BridgeError> 
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::utils::{
+        resolve_python_path, resolve_site_package_path, PYTHON_BIN_DIR, PYTHON_LIB_DIR,
+    };
+    use crate::BridgeError;
     use std::fs;
+    use std::path::PathBuf;
     use tempfile::TempDir;
 
     /// Helper to create a mock venv structure for testing
@@ -226,7 +230,7 @@ mod tests {
         let temp_venv = create_mock_venv_unix("python3.12");
         let venv_path = temp_venv.path().to_path_buf();
 
-        let result = resolve_site_package_path(&venv_path);
+        let result = resolve_site_package_path(venv_path.as_path());
         assert!(result.is_ok());
 
         let site_packages = result.unwrap();
@@ -240,7 +244,7 @@ mod tests {
         let temp_venv = create_mock_venv_unix("python3.11");
         let venv_path = temp_venv.path().to_path_buf();
 
-        let result = resolve_site_package_path(&venv_path);
+        let result = resolve_site_package_path(venv_path.as_path());
         assert!(result.is_ok());
 
         let site_packages = result.unwrap();
@@ -253,7 +257,7 @@ mod tests {
         let temp_venv = create_mock_venv_windows();
         let venv_path = temp_venv.path().to_path_buf();
 
-        let result = resolve_site_package_path(&venv_path);
+        let result = resolve_site_package_path(venv_path.as_path());
         assert!(result.is_ok());
 
         let site_packages = result.unwrap();
@@ -265,7 +269,7 @@ mod tests {
     fn test_resolve_site_package_path_venv_not_found() {
         let non_existent_path = PathBuf::from("/tmp/non_existent_venv_12345");
 
-        let result = resolve_site_package_path(&non_existent_path);
+        let result = resolve_site_package_path(non_existent_path.as_path());
         assert!(result.is_err());
 
         match result {
@@ -286,7 +290,7 @@ mod tests {
         let lib_dir = venv_path.join("lib");
         fs::create_dir_all(&lib_dir).unwrap();
 
-        let result = resolve_site_package_path(&venv_path.to_path_buf());
+        let result = resolve_site_package_path(venv_path);
         assert!(result.is_err());
 
         match result {
@@ -303,7 +307,7 @@ mod tests {
         let temp_venv = create_mock_venv_unix("python3.12");
         let venv_path = temp_venv.path().to_path_buf();
 
-        let result = resolve_python_path(&venv_path);
+        let result = resolve_python_path(venv_path.as_path());
         assert!(result.is_ok());
 
         let python_path = result.unwrap();
@@ -316,7 +320,7 @@ mod tests {
         let temp_venv = create_mock_venv_windows();
         let venv_path = temp_venv.path().to_path_buf();
 
-        let result = resolve_python_path(&venv_path);
+        let result = resolve_python_path(venv_path.as_path());
         assert!(result.is_ok());
 
         let python_path = result.unwrap();
@@ -363,7 +367,7 @@ mod tests {
         let site_packages_312 = python_312.join("site-packages");
         fs::create_dir_all(&site_packages_312).unwrap();
 
-        let result = resolve_site_package_path(&venv_path.to_path_buf());
+        let result = resolve_site_package_path(venv_path);
         assert!(result.is_ok());
 
         let site_packages = result.unwrap();

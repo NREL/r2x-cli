@@ -435,7 +435,8 @@ def $FUNC($$$PARAMS): $$$BODY";
 }
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::AstDiscovery;
+    use r2x_manifest::PluginSpec;
     use std::fs;
     use tempfile::TempDir;
     #[test]
