@@ -1,12 +1,8 @@
 //! Plugin invocation and execution
 
 use crate::errors::BridgeError;
-use pyo3::prelude::*;
 use r2x_logger as logger;
-use r2x_manifest::{
-    runtime::{build_runtime_bindings, RuntimeBindings},
-    PluginKind, PluginSpec,
-};
+use r2x_manifest::{runtime::build_runtime_bindings, PluginKind, PluginSpec};
 use std::time::Duration;
 
 mod kwargs;
@@ -27,7 +23,7 @@ pub struct PluginInvocationResult {
     pub timings: Option<PluginInvocationTimings>,
 }
 
-impl super::Bridge {
+impl crate::Bridge {
     pub fn invoke_plugin(
         &self,
         target: &str,
@@ -35,10 +31,7 @@ impl super::Bridge {
         stdin_json: Option<&str>,
         plugin_metadata: Option<&PluginSpec>,
     ) -> Result<PluginInvocationResult, BridgeError> {
-        let runtime_bindings = match plugin_metadata {
-            Some(meta) => Some(build_runtime_bindings(meta)),
-            None => None,
-        };
+        let runtime_bindings = plugin_metadata.map(build_runtime_bindings);
 
         if let Some(plugin) = plugin_metadata {
             if plugin.kind == PluginKind::Upgrader {
@@ -53,13 +46,5 @@ impl super::Bridge {
         }
 
         self.invoke_plugin_regular(target, config_json, stdin_json, runtime_bindings.as_ref())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_plugin_invocation_placeholder() {
-        assert!(true);
     }
 }

@@ -1,8 +1,9 @@
-use super::*;
-use crate::Bridge;
+use crate::{Bridge, BridgeError};
 use pyo3::exceptions::PyFileNotFoundError;
-use pyo3::types::{PyDict, PyList, PyModule};
+use pyo3::prelude::PyAny;
+use pyo3::types::{PyAnyMethods, PyDict, PyDictMethods, PyList, PyModule};
 use r2x_logger as logger;
+use r2x_manifest::runtime::RuntimeBindings;
 use r2x_manifest::ConfigSpec;
 use std::path::Path;
 
@@ -52,15 +53,23 @@ impl Bridge {
                 let params = PyDict::new(py);
                 for (key, value) in config_dict.iter() {
                     let key_str = key.extract::<String>()?;
-                    if key_str != "data_store" && key_str != "store_path" {
+                    if key_str != "store" && key_str != "data_store" && key_str != "store_path" {
                         params.set_item(key, value)?;
                     }
                 }
                 params
             };
 
+            logger::step(&format!(
+                "Instantiating config class with params: {:?}",
+                config_params
+            ));
             let config_obj =
                 self.instantiate_config_class(py, &config_params, runtime.config.as_ref())?;
+            logger::step(&format!(
+                "Config class instantiated, setting as kwarg '{}'",
+                config_param_name
+            ));
             kwargs.set_item(&config_param_name, &config_obj)?;
             config_instance = Some(config_obj.unbind());
         }
@@ -71,19 +80,22 @@ impl Bridge {
                 continue;
             }
 
-            if param.name == "data_store" || annotation.contains("DataStore") {
-                logger::step(&format!("Processing data_store parameter: {}", param.name));
-                let mut value = config_dict
-                    .get_item("store_path")?
-                    .or_else(|| config_dict.get_item(&param.name).ok().flatten());
-                if value.is_none() {
-                    value = config_dict.get_item("path").ok().flatten();
-                }
+            if param.name == "store"
+                || param.name == "data_store"
+                || annotation.contains("DataStore")
+            {
+                logger::step(&format!("Processing store parameter: {}", param.name));
+                // Look for store value: prefer "store" key, then param name, then "path"
+                let value = config_dict
+                    .get_item("store")?
+                    .or_else(|| config_dict.get_item(&param.name).ok().flatten())
+                    .or_else(|| config_dict.get_item("store_path").ok().flatten())
+                    .or_else(|| config_dict.get_item("path").ok().flatten());
 
                 if let Some(value) = value {
                     let config_binding = config_instance.as_ref().map(|obj| obj.bind(py));
-                    let store_instance = match config_binding {
-                        Some(ref binding) => self.instantiate_data_store(
+                    let store_instance = match config_binding.as_ref() {
+                        Some(binding) => self.instantiate_data_store(
                             py,
                             &value,
                             Some(binding),
@@ -105,10 +117,18 @@ impl Bridge {
                     kwargs.set_item("path", path_alias)?;
                 }
             } else if param.required {
-                logger::warn(&format!(
-                    "Required parameter '{}' missing in config",
-                    param.name
-                ));
+                let stdin_param = param.name == "stdin" || param.name == "system";
+                if stdin_param && stdin_obj.is_some() {
+                    logger::debug(&format!(
+                        "Required parameter '{}' will be provided via stdin",
+                        param.name
+                    ));
+                } else {
+                    logger::warn(&format!(
+                        "Required parameter '{}' missing in config",
+                        param.name
+                    ));
+                }
             }
         }
 
@@ -147,7 +167,7 @@ impl Bridge {
             ))
         })?;
 
-        config_class.call((), Some(&config_params)).map_err(|e| {
+        config_class.call((), Some(config_params)).map_err(|e| {
             BridgeError::Python(format!(
                 "Failed to instantiate config class '{}': {}",
                 config_meta.name, e
@@ -266,11 +286,7 @@ fn extract_missing_data_file(py: pyo3::Python<'_>, err: &pyo3::PyErr) -> Option<
             break;
         }
         if let Ok(repr) = ctx.str() {
-            logger::debug(&format!(
-                "Python exception context[{}]: {}",
-                depth,
-                repr.to_string()
-            ));
+            logger::debug(&format!("Python exception context[{}]: {}", depth, repr));
         }
         if ctx.is_instance_of::<PyFileNotFoundError>() {
             if let Ok(text) = ctx.str() {

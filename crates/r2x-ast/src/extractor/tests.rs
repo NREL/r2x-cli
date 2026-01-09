@@ -1,6 +1,9 @@
-use super::*;
+use crate::extractor::PluginExtractor;
+use anyhow::Result;
+use r2x_manifest::{ImplementationType, PluginKind};
 use std::collections::HashMap;
 use std::fs;
+use std::path::PathBuf;
 use tempfile::TempDir;
 
 #[test]

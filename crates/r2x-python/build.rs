@@ -2,6 +2,7 @@ use std::env;
 use std::path::{Path, PathBuf};
 
 fn main() {
+    pyo3_build_config::add_extension_module_link_args();
     let manifest_dir =
         PathBuf::from(env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set"));
     let target = env::var("TARGET").expect("TARGET not set");

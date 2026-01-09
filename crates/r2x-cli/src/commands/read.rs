@@ -282,7 +282,7 @@ fn ensure_module_installed(
 fn module_exists(python_exe: &str, module_name: &str) -> bool {
     Command::new(python_exe)
         .arg("-c")
-        .arg(&format!("import {}", module_name))
+        .arg(format!("import {}", module_name))
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
@@ -357,7 +357,8 @@ fn ensure_ipython_dir() -> Option<PathBuf> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::commands::read::ReadCommand;
+    use std::path::PathBuf;
 
     #[test]
     fn test_read_command_creation() {

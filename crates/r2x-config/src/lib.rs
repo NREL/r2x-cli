@@ -1,10 +1,90 @@
+use r2x_logger as logger;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use which::which;
 
-#[cfg(unix)]
-use std::process::Command;
+const UV_VERSION: &str = "0.9.24";
+const UV_DOWNLOAD_BASE_URL: &str = "https://github.com/astral-sh/uv/releases/download";
+
+fn uv_download_url() -> String {
+    format!("{}/{}", UV_DOWNLOAD_BASE_URL, UV_VERSION)
+}
+
+fn uv_binary_name() -> &'static str {
+    #[cfg(target_os = "windows")]
+    {
+        "uv.exe"
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        "uv"
+    }
+}
+
+fn default_uv_install_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
+    let home = dirs::home_dir().ok_or("Could not determine home directory")?;
+    Ok(home.join(".local").join("bin"))
+}
+
+fn uv_binary_path(install_dir: &Path) -> PathBuf {
+    install_dir.join(uv_binary_name())
+}
+
+fn uv_version_matches(path: &Path) -> bool {
+    let Ok(output) = Command::new(path).arg("--version").output() else {
+        return false;
+    };
+    if !output.status.success() {
+        return false;
+    }
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    stdout.contains(UV_VERSION) || stderr.contains(UV_VERSION)
+}
+
+fn install_uv(install_dir: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let download_url = uv_download_url();
+    #[cfg(target_os = "windows")]
+    {
+        let status = Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-Command",
+                "iwr -useb https://astral.sh/uv/install.ps1 | iex",
+            ])
+            .env("UV_INSTALL_DIR", install_dir.as_os_str())
+            .env("UV_NO_MODIFY_PATH", "1")
+            .env("UV_DOWNLOAD_URL", &download_url)
+            .status()?;
+
+        if !status.success() {
+            return Err("Failed to install uv".into());
+        }
+
+        return Ok(());
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        let status = Command::new("sh")
+            .arg("-c")
+            .arg("curl -LsSf https://astral.sh/uv/install.sh | sh")
+            .env("UV_INSTALL_DIR", install_dir.as_os_str())
+            .env("UV_NO_MODIFY_PATH", "1")
+            .env("UV_DOWNLOAD_URL", &download_url)
+            .status()?;
+
+        if !status.success() {
+            return Err("Failed to install uv".into());
+        }
+    }
+
+    Ok(())
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct Config {
@@ -256,56 +336,71 @@ impl Config {
     }
 
     pub fn ensure_uv_path(&mut self) -> Result<String, Box<dyn std::error::Error>> {
-        // Check if the stored path exists
+        let install_dir = default_uv_install_dir()?;
+        let expected_uv = uv_binary_path(&install_dir);
+
+        // Check if the stored path exists and matches the pinned version.
         if let Some(ref path) = self.uv_path {
-            if std::path::Path::new(path).exists() {
-                return Ok(path.clone());
+            let path = Path::new(path);
+            if path.exists() {
+                if uv_version_matches(path) {
+                    return Ok(path.to_string_lossy().trim().to_string());
+                }
+                logger::warn(&format!(
+                    "Configured uv path {} does not match required version {}; reinstalling.",
+                    path.display(),
+                    UV_VERSION
+                ));
+            } else {
+                logger::warn(&format!(
+                    "Stored uv path no longer exists: {}",
+                    path.display()
+                ));
             }
-            // Path was in config but doesn't exist, clear it
-            eprintln!("Stored uv path no longer exists: {}", path);
             self.uv_path = None;
         }
 
-        if let Ok(path) = which("uv") {
-            let path_str = path.to_string_lossy().trim().to_string();
+        // Prefer the pinned install location if it already exists.
+        if expected_uv.exists() && uv_version_matches(&expected_uv) {
+            let path_str = expected_uv.to_string_lossy().trim().to_string();
             self.uv_path = Some(path_str.clone());
             self.save()?;
             return Ok(path_str);
         }
 
-        #[cfg(target_os = "windows")]
-        {
-            return Err("uv is not installed. Please install it from: https://docs.astral.sh/uv/getting-started/installation/".into());
+        // Use uv from PATH only if it matches the pinned version.
+        if let Ok(path) = which("uv") {
+            if uv_version_matches(&path) {
+                let path_str = path.to_string_lossy().trim().to_string();
+                self.uv_path = Some(path_str.clone());
+                self.save()?;
+                return Ok(path_str);
+            }
+            logger::warn(&format!(
+                "Found uv at {} but it is not version {}; installing pinned uv.",
+                path.display(),
+                UV_VERSION
+            ));
         }
 
-        #[cfg(not(target_os = "windows"))]
-        {
-            eprintln!("uv not found. Installing uv using official installer...\n");
+        logger::warn(&format!(
+            "uv not found. Installing uv {} to {}...",
+            UV_VERSION,
+            install_dir.display()
+        ));
+        install_uv(&install_dir)?;
 
-            let status = Command::new("sh")
-                .arg("-c")
-                .arg("curl -LsSf https://astral.sh/uv/install.sh | sh")
-                .status()?;
-
-            if !status.success() {
-                return Err("Failed to install uv".into());
-            }
-
-            eprintln!("\nuv installation completed. Verifying installation...");
-
-            // Verify the installation
-            if let Ok(output) = Command::new("which").arg("uv").output() {
-                if output.status.success() {
-                    let path = String::from_utf8(output.stdout)?.trim().to_string();
-                    eprintln!("Found uv at: {}", path);
-                    self.uv_path = Some(path.clone());
-                    self.save()?;
-                    return Ok(path);
-                }
-            }
-
-            return Err("Failed to locate uv after installation. Verify that ~/.local/bin or ~/.cargo/bin is in your PATH".into());
+        if expected_uv.exists() && uv_version_matches(&expected_uv) {
+            let path_str = expected_uv.to_string_lossy().trim().to_string();
+            self.uv_path = Some(path_str.clone());
+            self.save()?;
+            return Ok(path_str);
         }
+
+        Err(
+            "Failed to locate uv after installation. Verify that ~/.local/bin (or %USERPROFILE%\\.local\\bin on Windows) is in your PATH."
+                .into(),
+        )
     }
 
     pub fn ensure_cache_path(&mut self) -> Result<String, Box<dyn std::error::Error>> {
@@ -315,8 +410,6 @@ impl Config {
     }
 
     pub fn ensure_venv_path(&mut self) -> Result<String, Box<dyn std::error::Error>> {
-        use std::process::Command;
-
         let venv_path = self.get_venv_path();
 
         // Check if venv already exists
@@ -346,7 +439,7 @@ impl Config {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::Config;
 
     #[test]
     fn test_config_new() {

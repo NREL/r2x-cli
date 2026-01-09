@@ -20,7 +20,7 @@ Before building r2x-cli, you need:
    ```
    Follow the prompts and choose the default installation method.
 
-2. **UV package manager** - Install via:
+2. **UV package manager** - Optional for prebuilt binaries. r2x will auto-install uv 0.9.24 into `~/.local/bin` (or `%USERPROFILE%\.local\bin`) if missing. If you prefer to install it manually:
    ```bash
    curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
@@ -29,6 +29,7 @@ Before building r2x-cli, you need:
    ```bash
    uv python install 3.12
    ```
+   If uv is not yet on your PATH, use `~/.local/bin/uv` or `%USERPROFILE%\.local\bin\uv.exe`.
 
 After installation, restart your shell to ensure the tools are in your PATH.
 
@@ -74,12 +75,12 @@ Create the r2x binary directory and copy the built binary:
 
 ```bash
 # Linux/macOS
-mkdir -p ~/.r2x/bin
-cp target/release/r2x ~/.r2x/bin/r2x
+mkdir -p ~/.local/bin
+cp target/release/r2x ~/.local/bin/r2x
 
 # Windows (PowerShell)
-New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.r2x\bin"
-Copy-Item target\release\r2x.exe "$env:USERPROFILE\.r2x\bin\r2x.exe"
+New-Item -ItemType Directory -Force -Path "$env:USERPROFILE\.local\bin"
+Copy-Item target\release\r2x.exe "$env:USERPROFILE\.local\bin\r2x.exe"
 ```
 
 #### Step 3: Link Python Dynamic Library
@@ -90,7 +91,7 @@ The r2x-cli binary needs to find the Python shared library at runtime. Create a 
 ```bash
 # Link libpython3.12.so.1.0
 ln -s ~/.local/share/uv/python/cpython-3.12.11-linux-x86_64-gnu/lib/libpython3.12.so.1.0 \
-      ~/.r2x/bin/libpython3.12.so.1.0
+      ~/.local/bin/libpython3.12.so.1.0
 
 # If the file doesn't exist, check the exact path with:
 find ~/.local/share/uv/python -name "libpython*.so*"
@@ -100,7 +101,7 @@ find ~/.local/share/uv/python -name "libpython*.so*"
 ```bash
 # Link libpython3.12.dylib
 ln -s ~/.local/share/uv/python/cpython-3.12.11-macos-aarch64-none/lib/libpython3.12.dylib \
-      ~/.r2x/bin/libpython3.12.dylib
+      ~/.local/bin/libpython3.12.dylib
 
 # For Intel Macs, the path may be different:
 find ~/.local/share/uv/python -name "libpython*.dylib"
@@ -110,7 +111,7 @@ find ~/.local/share/uv/python -name "libpython*.dylib"
 ```powershell
 # Copy python312.dll (Windows uses DLL instead of symlinks)
 Copy-Item "$env:USERPROFILE\.local\share\uv\python\cpython-3.12.11-windows-x86_64-none\python312.dll" `
-          "$env:USERPROFILE\.r2x\bin\python312.dll"
+          "$env:USERPROFILE\.local\bin\python312.dll"
 ```
 
 #### Step 4: Update PATH
@@ -119,13 +120,13 @@ Add the r2x binary directory to your PATH:
 
 **Linux/macOS (bash):**
 ```bash
-echo 'export PATH="$HOME/.r2x/bin:$PATH"' >> ~/.bashrc
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
 **Linux/macOS (zsh):**
 ```bash
-echo 'export PATH="$HOME/.r2x/bin:$PATH"' >> ~/.zshrc
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
 ```
 
@@ -134,12 +135,12 @@ source ~/.zshrc
 # Add to user PATH permanently
 [Environment]::SetEnvironmentVariable(
     "Path",
-    [Environment]::GetEnvironmentVariable("Path", "User") + ";$env:USERPROFILE\.r2x\bin",
+    [Environment]::GetEnvironmentVariable("Path", "User") + ";$env:USERPROFILE\.local\bin",
     "User"
 )
 
 # For current session only:
-$env:PATH = "$env:USERPROFILE\.r2x\bin;$env:PATH"
+$env:PATH = "$env:USERPROFILE\.local\bin;$env:PATH"
 ```
 
 #### Step 5: Verify Installation
@@ -164,8 +165,8 @@ You should see the version information and list of available commands.
 - Verify the path points to a valid Python executable: `$PYO3_PYTHON --version`
 
 **Problem: r2x command not found**
-- Verify ~/.r2x/bin is in your PATH: `echo $PATH`
-- Try using the full path: `~/.r2x/bin/r2x --version`
+- Verify ~/.local/bin is in your PATH: `echo $PATH`
+- Try using the full path: `~/.local/bin/r2x --version`
 - Make sure you reloaded your shell configuration
 
 **HPC/Older Systems:**

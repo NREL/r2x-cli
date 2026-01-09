@@ -11,7 +11,7 @@ use std::fs;
 use std::path::Path;
 use tracing::{debug, info};
 
-use super::types::Manifest;
+use crate::types::Manifest;
 
 /// Write manifest to a custom path (primarily for testing)
 pub fn write_to_path(manifest: &Manifest, output_path: &Path) -> Result<()> {
@@ -43,9 +43,9 @@ pub fn read_from_path(manifest_path: &Path) -> Result<Manifest> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::manifest_writer::{read_from_path, write_to_path};
     use crate::types::{
-        ArgumentSpec, IOContract, ImplementationType, InvocationSpec, Metadata, Package,
+        ArgumentSpec, IOContract, ImplementationType, InvocationSpec, Manifest, Metadata, Package,
         PluginKind, PluginSpec,
     };
     use tempfile::TempDir;
@@ -108,7 +108,7 @@ mod tests {
 
         assert_eq!(loaded.packages.len(), 1);
         assert_eq!(loaded.packages[0].name, "r2x-example");
-        assert_eq!(loaded.packages[0].editable_install, true);
+        assert!(loaded.packages[0].editable_install);
         assert_eq!(loaded.packages[0].plugins[0].name, "example-plugin");
         assert_eq!(
             loaded.packages[0].plugins[0].invocation.constructor.len(),

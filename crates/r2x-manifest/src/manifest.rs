@@ -3,8 +3,8 @@
 //! This module provides the core operations for managing the r2x plugin manifest,
 //! including CRUD operations, dependency tracking, and persistence.
 
-use super::types::{Manifest, Metadata, Package};
 use crate::errors::ManifestError;
+use crate::types::{Manifest, Metadata, Package};
 use std::path::PathBuf;
 
 impl Manifest {
@@ -202,12 +202,10 @@ impl Manifest {
                 dep_pkg.installed_by.retain(|pkg| pkg != package_name);
 
                 // If no other packages depend on it, remove it
-                if dep_pkg.installed_by.is_empty()
-                    && dep_pkg.install_type.as_deref() == Some("dependency")
-                {
-                    if self.remove_package(&dep) {
-                        removed.push(dep);
-                    }
+                let should_remove = dep_pkg.installed_by.is_empty()
+                    && dep_pkg.install_type.as_deref() == Some("dependency");
+                if should_remove && self.remove_package(&dep) {
+                    removed.push(dep);
                 }
             }
         }
@@ -249,7 +247,7 @@ impl Manifest {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::types::Manifest;
 
     #[test]
     fn test_manifest_default() {

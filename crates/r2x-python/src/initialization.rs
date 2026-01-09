@@ -3,8 +3,8 @@
 //! This module handles all Python interpreter initialization, virtual environment
 //! configuration, and environment setup required before the bridge can be used.
 
-use super::utils::{resolve_python_path, resolve_site_package_path};
 use crate::errors::BridgeError;
+use crate::utils::{resolve_python_path, resolve_site_package_path};
 use once_cell::sync::OnceCell;
 use pyo3::prelude::*;
 use pyo3::types::PyModule;
@@ -29,7 +29,7 @@ fn get_compiled_python_version() -> Result<String, BridgeError> {
     // Otherwise, we need to query Python at runtime
     if let Ok(pyo3_python) = env::var("PYO3_PYTHON") {
         // Try to extract version from path like "python3.12"
-        if let Some(version) = pyo3_python.split('/').last() {
+        if let Some(version) = pyo3_python.split('/').next_back() {
             if let Some(ver) = version.strip_prefix("python") {
                 if ver.matches('.').count() >= 1 {
                     let parts: Vec<&str> = ver.split('.').take(2).collect();
@@ -161,7 +161,7 @@ impl Bridge {
             BridgeError::Initialization(format!("Failed to ensure cache path: {}", e))
         })?;
         let venv_path = PathBuf::from(config.get_venv_path());
-        let site_packages = resolve_site_package_path(&venv_path)?;
+        let site_packages = resolve_site_package_path(venv_path.as_path())?;
         if let Some(ref home) = python_env.python_home {
             configure_embedded_python_env(home, &site_packages);
         } else {
@@ -436,7 +436,7 @@ pub fn configure_python_venv() -> Result<PythonEnvironment, BridgeError> {
 
     let venv_path = PathBuf::from(config.get_venv_path());
 
-    let python_path_result = resolve_python_path(&venv_path);
+    let python_path_result = resolve_python_path(venv_path.as_path());
 
     if python_path_result.is_err() {
         logger::debug("Could not resolve Python path");
@@ -478,7 +478,7 @@ pub fn configure_python_venv() -> Result<PythonEnvironment, BridgeError> {
             )));
         }
 
-        python_path = resolve_python_path(&venv_path).unwrap_or_else(|_| PathBuf::new());
+        python_path = resolve_python_path(venv_path.as_path()).unwrap_or_else(|_| PathBuf::new());
 
         if python_path.as_os_str().is_empty() || !python_path.exists() {
             if let Ok(entries) = std::fs::read_dir(venv_path.join(PYTHON_BIN_DIR_NAME)) {

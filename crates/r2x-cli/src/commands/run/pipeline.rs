@@ -1,4 +1,4 @@
-use super::RunError;
+use crate::commands::run::RunError;
 use crate::errors::PipelineError;
 use crate::logger;
 use crate::package_verification;
@@ -203,7 +203,7 @@ fn run_pipeline(
             pipeline_overrides.as_deref(),
         )?;
 
-        let target = super::build_call_target(&bindings)?;
+        let target = crate::commands::run::build_call_target(&bindings)?;
         let bridge = Bridge::get()?;
         logger::debug(&format!("Invoking: {}", target));
         logger::debug(&format!("Config: {}", final_config_json));
@@ -217,11 +217,11 @@ fn run_pipeline(
                         plugin_name,
                         step_num,
                         total_steps,
-                        super::format_duration(elapsed)
+                        crate::commands::run::format_duration(elapsed)
                     ));
                     if logger::get_verbosity() > 0 {
                         if let Some(timings) = &inv_result.timings {
-                            super::print_plugin_timing_breakdown(timings);
+                            crate::commands::run::print_plugin_timing_breakdown(timings);
                         }
                     }
                     inv_result
@@ -233,7 +233,7 @@ fn run_pipeline(
                         plugin_name,
                         step_num,
                         total_steps,
-                        super::format_duration(elapsed)
+                        crate::commands::run::format_duration(elapsed)
                     ));
                     return Err(RunError::Bridge(e));
                 }
@@ -253,7 +253,7 @@ fn run_pipeline(
         "{}",
         format!(
             "Finished in: {}",
-            super::format_duration(pipeline_start.elapsed())
+            crate::commands::run::format_duration(pipeline_start.elapsed())
         )
         .green()
         .bold()
@@ -426,9 +426,7 @@ fn build_plugin_config(
 
         if let serde_json::Value::Object(ref yaml_map) = yaml_config {
             for (key, value) in yaml_map {
-                if key == "store" {
-                    continue;
-                } else if config_param_names.contains(key) {
+                if config_param_names.contains(key) {
                     config_class_params.insert(key.clone(), value.clone());
                 } else if bindings.entry_parameters.iter().any(|p| p.name == *key) {
                     constructor_params.insert(key.clone(), value.clone());
@@ -464,36 +462,31 @@ fn build_plugin_config(
             }
         }
 
-        let needs_store = bindings.requires_store
-            || bindings
-                .entry_parameters
-                .iter()
-                .any(|p| p.name == "data_store");
+        // Check if plugin requires a DataStore instance.
+        // If so, create it from the `path` config value.
+        let needs_store =
+            bindings.requires_store || bindings.entry_parameters.iter().any(|p| p.name == "store");
 
         if needs_store {
+            // Use `path` as primary source for store, with fallbacks
             let store_value = if let serde_json::Value::Object(ref yaml_map) = yaml_config {
-                match yaml_map.get("store") {
-                    Some(value) => value.clone(),
-                    None => {
-                        if let Some(explicit_path) = yaml_map.get("store_path").cloned() {
-                            explicit_path
-                        } else if let Some(inherited) = inherited_store_path {
-                            serde_json::Value::String(inherited.to_string())
-                        } else {
-                            fallback_store_value(package_name, output_folder)?
-                        }
-                    }
-                }
+                yaml_map
+                    .get("path")
+                    .or_else(|| yaml_map.get("store"))
+                    .or_else(|| yaml_map.get("store_path"))
+                    .cloned()
+                    .or_else(|| {
+                        inherited_store_path.map(|p| serde_json::Value::String(p.to_string()))
+                    })
+                    .map_or_else(|| fallback_store_value(package_name, output_folder), Ok)?
+            } else if let Some(inherited) = inherited_store_path {
+                serde_json::Value::String(inherited.to_string())
             } else {
-                if let Some(inherited) = inherited_store_path {
-                    serde_json::Value::String(inherited.to_string())
-                } else {
-                    fallback_store_value(package_name, output_folder)?
-                }
+                fallback_store_value(package_name, output_folder)?
             };
 
             store_value_for_folder = Some(store_value.clone());
-            final_config.insert("data_store".to_string(), store_value);
+            final_config.insert("store".to_string(), store_value);
         }
 
         if bindings

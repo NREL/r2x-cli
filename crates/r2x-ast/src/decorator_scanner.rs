@@ -432,7 +432,9 @@ impl DecoratorScanner {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::decorator_scanner::DecoratorScanner;
+    use anyhow::Result;
+    use std::path::PathBuf;
 
     #[test]
     fn test_parse_decorator_args_from_text() {

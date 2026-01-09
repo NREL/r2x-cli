@@ -700,7 +700,8 @@ fn handle_cache_path(new_path: Option<String>, _opts: GlobalOpts) {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::commands::config::{handle_config, ConfigAction};
+    use crate::GlobalOpts;
 
     fn quiet_opts() -> GlobalOpts {
         GlobalOpts {

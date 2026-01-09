@@ -5,7 +5,7 @@ use crate::logger;
 use crate::r2x_manifest::Manifest;
 use r2x_python::resolve_site_package_path;
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -108,7 +108,7 @@ pub fn verify_plugin_packages(
 /// # Returns
 /// List of packages that are not installed or invalid
 fn check_packages_installed(
-    venv_path: &PathBuf,
+    venv_path: &Path,
     packages: &[&str],
 ) -> Result<Vec<String>, VerificationError> {
     let site_packages = get_site_packages_dir(venv_path)?;
@@ -137,7 +137,7 @@ fn check_packages_installed(
 }
 
 /// Get the site-packages directory from venv
-fn get_site_packages_dir(venv_path: &PathBuf) -> Result<PathBuf, VerificationError> {
+fn get_site_packages_dir(venv_path: &Path) -> Result<PathBuf, VerificationError> {
     logger::debug(&format!(
         "Getting site-packages directory for venv: {}",
         venv_path.display()
@@ -322,7 +322,7 @@ pub fn verify_all_packages(manifest: &Manifest) -> Result<HashSet<String>, Verif
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::package_verification::{VerificationError, VerificationResult};
 
     #[test]
     fn test_verification_result_valid() {
