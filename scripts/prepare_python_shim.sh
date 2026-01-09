@@ -102,6 +102,12 @@ if [[ "${TARGET_TRIPLE}" == *"apple-darwin"* ]]; then
     install_name_tool -id "@rpath/${LIB_NAME}" "${OUT_DIR}/${LIB_NAME}"
 fi
 
+if [[ "${TARGET_TRIPLE}" == *"linux"* ]]; then
+    SONAME="${LIB_NAME}.1.0"
+    echo "Creating symlink ${SONAME} -> ${LIB_NAME} for Linux SONAME compatibility..."
+    ln -sf "${LIB_NAME}" "${OUT_DIR}/${SONAME}"
+fi
+
 for shim_name in "${SHIM_NAMES[@]}"; do
     if [[ ! -f "${SHIM_DIST_DIR}/${shim_name}" ]]; then
         : > "${SHIM_DIST_DIR}/${shim_name}"
