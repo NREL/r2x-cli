@@ -170,3 +170,160 @@ manifest.add(PluginSpec.parser(name="demo.parser", entry=DemoParser))
 
     Ok(())
 }
+
+#[test]
+fn test_extract_parameters_with_inline_comments() -> Result<()> {
+    let content = r#"
+class TestExporter:
+    def __init__(
+        self,
+        data_store=None,
+        output_path: str | None = None,
+        db=None,  # Allow passing existing DB for testing
+        solve_year: int | None = None,  # ReEDS field for filename association
+        weather_year: int | None = None,  # ReEDS field for filename association
+    ):
+        pass
+"#;
+
+    let temp_dir = TempDir::new()?;
+    let pkg_root = temp_dir.path().join("test_pkg");
+    fs::create_dir_all(&pkg_root)?;
+    let test_file = pkg_root.join("test.py");
+    fs::write(&test_file, content)?;
+
+    let extractor = PluginExtractor::new(test_file, "test_pkg.test".to_string(), pkg_root.clone())?;
+
+    let params = extractor.extract_class_parameters_from_content(content, "TestExporter")?;
+
+    // Should extract 5 parameters (excluding self)
+    assert_eq!(params.len(), 5);
+
+    // Verify parameter names don't contain comments
+    assert_eq!(params[0].name, "data_store");
+    assert_eq!(params[1].name, "output_path");
+    assert_eq!(params[2].name, "db");
+    assert_eq!(params[3].name, "solve_year");
+    assert_eq!(params[4].name, "weather_year");
+
+    // Verify defaults don't contain comments
+    assert_eq!(params[2].default.as_deref(), Some("None"));
+    assert_eq!(params[3].default.as_deref(), Some("None"));
+    assert_eq!(params[4].default.as_deref(), Some("None"));
+
+    // Verify annotations don't contain comments
+    assert_eq!(params[3].annotation.as_deref(), Some("int | None"));
+    assert_eq!(params[4].annotation.as_deref(), Some("int | None"));
+
+    Ok(())
+}
+
+#[test]
+fn test_extract_config_fields_with_inline_comments() -> Result<()> {
+    let content = r#"
+class TestConfig:
+    model_name: str
+    template: str | None = None  # Template file path
+    simulation_config: dict | None = None  # Simulation configuration
+"#;
+
+    let temp_dir = TempDir::new()?;
+    let pkg_root = temp_dir.path().join("test_pkg");
+    fs::create_dir_all(&pkg_root)?;
+    let test_file = pkg_root.join("test.py");
+    fs::write(&test_file, content)?;
+
+    let extractor = PluginExtractor::new(test_file, "test_pkg.test".to_string(), pkg_root.clone())?;
+
+    let fields = extractor.extract_config_fields("test_pkg.test", "TestConfig");
+
+    // Should extract 3 fields
+    assert_eq!(fields.len(), 3);
+
+    // Verify field names don't contain comments
+    assert_eq!(fields[0].name, "model_name");
+    assert_eq!(fields[1].name, "template");
+    assert_eq!(fields[2].name, "simulation_config");
+
+    // Verify defaults don't contain comments
+    assert_eq!(fields[1].default.as_deref(), Some("None"));
+    assert_eq!(fields[2].default.as_deref(), Some("None"));
+
+    // Verify annotations don't contain comments
+    assert_eq!(fields[0].annotation.as_deref(), Some("str"));
+    assert_eq!(fields[1].annotation.as_deref(), Some("str | None"));
+    assert_eq!(fields[2].annotation.as_deref(), Some("dict | None"));
+
+    Ok(())
+}
+
+#[test]
+fn test_extract_multiple_config_fields_separately() -> Result<()> {
+    let content = r#"
+class PLEXOSConfig:
+    model_name: Annotated[str, Field(description="Name of the PLEXOS model.")]
+    timeseries_dir: Annotated[
+        DirectoryPath | None,
+        Field(
+            description="Optional subdirectory containing time series files.",
+            default=None,
+        ),
+    ]
+    horizon_year: Annotated[int | None, Field(description="Horizon year", default=None)]
+    template: Annotated[
+        FilePath | None, Field(description="File to the XML to use as template.")
+    ] = None
+    simulation_config: Annotated[SimulationConfig | None, Field(description="Simulation configuration")] = (
+        None
+    )
+"#;
+
+    let temp_dir = TempDir::new()?;
+    let pkg_root = temp_dir.path().join("test_pkg");
+    fs::create_dir_all(&pkg_root)?;
+    let test_file = pkg_root.join("test.py");
+    fs::write(&test_file, content)?;
+
+    let extractor = PluginExtractor::new(test_file, "test_pkg.test".to_string(), pkg_root.clone())?;
+
+    let fields = extractor.extract_config_fields("test_pkg.test", "PLEXOSConfig");
+
+    // Should extract 5 separate fields, not concatenate them
+    assert_eq!(
+        fields.len(),
+        5,
+        "Expected 5 separate fields but got {}",
+        fields.len()
+    );
+
+    // Verify each field is extracted separately
+    assert_eq!(fields[0].name, "model_name");
+    assert_eq!(fields[1].name, "timeseries_dir");
+    assert_eq!(fields[2].name, "horizon_year");
+    assert_eq!(fields[3].name, "template");
+    assert_eq!(fields[4].name, "simulation_config");
+
+    // Verify model_name doesn't contain timeseries_dir content
+    assert!(
+        !fields[0]
+            .annotation
+            .as_ref()
+            .unwrap()
+            .contains("timeseries_dir"),
+        "model_name annotation should not contain timeseries_dir: {}",
+        fields[0].annotation.as_ref().unwrap()
+    );
+
+    // Verify timeseries_dir doesn't contain horizon_year content
+    assert!(
+        !fields[1]
+            .annotation
+            .as_ref()
+            .unwrap()
+            .contains("horizon_year"),
+        "timeseries_dir annotation should not contain horizon_year: {}",
+        fields[1].annotation.as_ref().unwrap()
+    );
+
+    Ok(())
+}

@@ -161,8 +161,16 @@ impl PluginExtractor {
                     && inner_idx < lines.len()
                 {
                     let continuation = lines[inner_idx].trim();
-                    signature.push(' ');
-                    signature.push_str(continuation);
+                    // Strip comments from the line before adding to signature
+                    let continuation_no_comment = if let Some(hash_pos) = continuation.find('#') {
+                        continuation[..hash_pos].trim()
+                    } else {
+                        continuation
+                    };
+                    if !continuation_no_comment.is_empty() {
+                        signature.push(' ');
+                        signature.push_str(continuation_no_comment);
+                    }
                     inner_idx += 1;
                 }
                 return Some(signature);
@@ -226,10 +234,18 @@ impl PluginExtractor {
     fn parse_single_parameter_entry(&self, raw: &str) -> Option<ParameterEntry> {
         let param_str = raw.trim();
 
+        // Strip inline comments from the parameter string
+        let param_str = if let Some(hash_pos) = param_str.find('#') {
+            param_str[..hash_pos].trim()
+        } else {
+            param_str
+        };
+
         if param_str.is_empty()
             || param_str == "self"
             || param_str == "/"
             || param_str.starts_with('*')
+            || param_str.starts_with('#')
         {
             return None;
         }
