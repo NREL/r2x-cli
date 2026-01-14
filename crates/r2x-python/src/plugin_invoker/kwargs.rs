@@ -32,24 +32,51 @@ impl Bridge {
         let mut needs_config_class = false;
         let mut config_param_name = String::new();
 
-        // Use ConfigSpec metadata as the authoritative source for whether we need
-        // to instantiate a config class. This avoids relying on naming heuristics
-        // like checking if param.name == "config" or annotation.contains("Config").
-        if runtime.config.is_some() {
-            // Find the parameter that will receive the config instance
+        // Use ConfigSpec metadata as the authoritative source for config parameter detection.
+        // Match parameters by their annotation against the config class name from the manifest,
+        // allowing plugin authors to name their config parameter anything they want.
+        if let Some(config_spec) = &runtime.config {
+            let config_class_name = &config_spec.name;
+            logger::debug(&format!(
+                "Looking for config parameter with annotation matching '{}'",
+                config_class_name
+            ));
+
+            // Find the parameter whose annotation matches the config class name
             for param in &runtime.entry_parameters {
                 let annotation = param.annotation.as_deref().unwrap_or("");
-                if param.name == "config" || annotation.contains("Config") {
+                if annotation == config_class_name
+                    || annotation.contains(config_class_name.as_str())
+                {
                     needs_config_class = true;
                     config_param_name = param.name.clone();
+                    logger::debug(&format!(
+                        "Config parameter detected: '{}' (annotation '{}' matches config class '{}')",
+                        param.name, annotation, config_class_name
+                    ));
                     break;
                 }
             }
-            // If we have config metadata but no matching param, still instantiate
-            // and use "config" as the default param name
+
+            // Fallback: if no annotation match, look for a param explicitly named after the config
+            if !needs_config_class {
+                for param in &runtime.entry_parameters {
+                    if param.name == "config" {
+                        needs_config_class = true;
+                        config_param_name = "config".to_string();
+                        logger::debug(
+                            "Config parameter detected by fallback: param named 'config'",
+                        );
+                        break;
+                    }
+                }
+            }
+
+            // Last resort: we have config metadata but no matching param, use "config" as default
             if !needs_config_class {
                 needs_config_class = true;
                 config_param_name = "config".to_string();
+                logger::warn("No matching config parameter found in function signature, defaulting to 'config'");
             }
         }
 
@@ -86,11 +113,12 @@ impl Bridge {
         }
 
         for param in &runtime.entry_parameters {
-            let annotation = param.annotation.as_deref().unwrap_or("");
-            if param.name == "config" || annotation.contains("Config") {
+            // Skip the config parameter - it was already handled above
+            if needs_config_class && param.name == config_param_name {
                 continue;
             }
 
+            let annotation = param.annotation.as_deref().unwrap_or("");
             if param.name == "store"
                 || param.name == "data_store"
                 || annotation.contains("DataStore")
