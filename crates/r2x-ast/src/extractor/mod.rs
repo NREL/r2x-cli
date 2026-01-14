@@ -815,7 +815,13 @@ impl PluginExtractor {
                 }
                 if trimmed.contains(':') || trimmed.contains('=') {
                     buffer.clear();
-                    buffer.push_str(trimmed);
+                    // Strip comments from the initial line
+                    let trimmed_no_comment = if let Some(hash_pos) = trimmed.find('#') {
+                        trimmed[..hash_pos].trim()
+                    } else {
+                        trimmed
+                    };
+                    buffer.push_str(trimmed_no_comment);
                     capturing = true;
                     bracket_depth = Self::bracket_delta(trimmed);
                     seen_equal = Self::line_contains_equals(trimmed);
@@ -828,8 +834,44 @@ impl PluginExtractor {
                     continue;
                 }
             } else {
-                buffer.push(' ');
-                buffer.push_str(trimmed);
+                // Strip comments from continuation lines first
+                let trimmed_no_comment = if let Some(hash_pos) = trimmed.find('#') {
+                    trimmed[..hash_pos].trim()
+                } else {
+                    trimmed
+                };
+
+                // Check if this line starts a new field definition
+                let looks_like_new_field = trimmed_no_comment
+                    .chars()
+                    .next()
+                    .map(|c| c.is_ascii_alphabetic() || c == '_')
+                    .unwrap_or(false)
+                    && (trimmed_no_comment.contains(':') || trimmed_no_comment.contains('='));
+
+                // If we see a new field starting, finish the current one
+                if looks_like_new_field && bracket_depth <= 0 {
+                    if let Some(field) = Self::parse_config_field_definition(&buffer) {
+                        fields.push(field);
+                    }
+                    // Start capturing the new field
+                    buffer.clear();
+                    buffer.push_str(trimmed_no_comment);
+                    bracket_depth = Self::bracket_delta(trimmed);
+                    seen_equal = Self::line_contains_equals(trimmed);
+                    if seen_equal && bracket_depth <= 0 {
+                        if let Some(field) = Self::parse_config_field_definition(&buffer) {
+                            fields.push(field);
+                        }
+                        capturing = false;
+                    }
+                    continue;
+                }
+
+                if !trimmed_no_comment.is_empty() {
+                    buffer.push(' ');
+                    buffer.push_str(trimmed_no_comment);
+                }
                 bracket_depth += Self::bracket_delta(trimmed);
                 if !seen_equal && Self::line_contains_equals(trimmed) {
                     seen_equal = true;
