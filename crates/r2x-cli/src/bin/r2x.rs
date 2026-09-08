@@ -39,9 +39,18 @@ fn main() -> Result<()> {
 }
 
 fn launch(args: &[OsString]) -> Result<()> {
+    if is_version_request(args) {
+        println!("r2x {}", env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
+    let payload = payload_path()?;
+    if !requires_python_environment(args) {
+        return run_payload_directly(&payload, args);
+    }
+
     let runtime = Runtime::load()?;
     let library_dir = python_library_dir(&runtime)?;
-    let payload = payload_path()?;
 
     let mut command = uv_run_in_venv(&runtime);
     command.arg(&payload).args(args);
@@ -49,10 +58,38 @@ fn launch(args: &[OsString]) -> Result<()> {
 
     let status = command.status().context("failed to start R2X through uv")?;
     match status.code() {
-        Some(0) => Ok(()),
-        Some(code) => bail!("R2X exited with status {code}"),
+        Some(code) => std::process::exit(code),
         None => bail!("R2X terminated without an exit code"),
     }
+}
+
+fn run_payload_directly(payload: &Path, args: &[OsString]) -> Result<()> {
+    let status = Command::new(payload)
+        .args(args)
+        .status()
+        .context("failed to start R2X runtime")?;
+    match status.code() {
+        Some(code) => std::process::exit(code),
+        None => bail!("R2X terminated without an exit code"),
+    }
+}
+
+fn is_version_request(args: &[OsString]) -> bool {
+    matches!(args, [arg] if arg == "--version" || arg == "-V")
+}
+
+fn requires_python_environment(args: &[OsString]) -> bool {
+    let Some(command) = args.iter().find_map(|arg| {
+        let arg = arg.to_string_lossy();
+        (!arg.starts_with('-') && arg != "--").then_some(arg)
+    }) else {
+        return false;
+    };
+
+    matches!(
+        command.as_ref(),
+        "list" | "install" | "remove" | "sync" | "clean" | "run" | "read"
+    )
 }
 
 fn payload_path() -> Result<PathBuf> {
@@ -165,9 +202,10 @@ fn prepend_path(prefix: &Path, existing: Option<OsString>) -> Result<OsString> {
 
 #[cfg(test)]
 mod tests {
-    use super::{payload_name, payload_path_next_to, prepend_path};
+    use super::{payload_name, payload_path_next_to, prepend_path, requires_python_environment};
     use anyhow::Result;
     use std::env;
+    use std::ffi::OsString;
     use std::path::{Path, PathBuf};
 
     #[test]
@@ -175,6 +213,24 @@ mod tests {
         let payload = payload_path_next_to(Path::new("bin/r2x"))?;
         assert_eq!(payload, Path::new("bin").join(payload_name()));
         Ok(())
+    }
+
+    #[test]
+    fn routes_runtime_only_commands_without_python_bootstrap() {
+        let args = [OsString::from("--version")];
+        assert!(!requires_python_environment(&args));
+
+        let args = [OsString::from("config"), OsString::from("reset")];
+        assert!(!requires_python_environment(&args));
+    }
+
+    #[test]
+    fn routes_python_commands_through_uv_bootstrap() {
+        let args = [OsString::from("run"), OsString::from("plugin")];
+        assert!(requires_python_environment(&args));
+
+        let args = [OsString::from("read")];
+        assert!(requires_python_environment(&args));
     }
 
     #[test]

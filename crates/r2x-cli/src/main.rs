@@ -198,6 +198,19 @@ fn exit_on_plugin_error(result: Result<(), r2x::plugins::error::PluginError>) {
     }
 }
 
+fn requires_python_environment(command: &Commands) -> bool {
+    matches!(
+        command,
+        Commands::List { .. }
+            | Commands::Install { .. }
+            | Commands::Remove { .. }
+            | Commands::Sync { .. }
+            | Commands::Clean { .. }
+            | Commands::Run(_)
+            | Commands::Read(_)
+    )
+}
+
 fn main() {
     // Respect NO_COLOR and TERM=dumb for accessibility and automation
     if std::env::var_os("NO_COLOR").is_some()
@@ -245,7 +258,7 @@ fn main() {
         eprintln!("Warning: Failed to initialize logger: {}", e);
     }
 
-    if !matches!(cli.command, Commands::Self_(_)) {
+    if requires_python_environment(&cli.command) {
         if let Some(cfg) = startup_config.as_mut() {
             if let Err(e) = cfg.ensure_uv_path().and_then(|_| cfg.ensure_cache_path()) {
                 logger::warn(&format!("Failed to setup CLI: {}", e));

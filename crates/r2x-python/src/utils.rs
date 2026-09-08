@@ -46,6 +46,14 @@ mod tests {
             .join(python_version)
             .join("site-packages");
         fs::create_dir_all(&site_packages).ok()?;
+        fs::write(
+            venv_path.join("pyvenv.cfg"),
+            format!(
+                "version_info = {}\n",
+                python_version.trim_start_matches("python")
+            ),
+        )
+        .ok()?;
 
         let bin_dir = venv_path.join(PYTHON_BIN_DIR);
         fs::create_dir_all(&bin_dir).ok()?;
@@ -123,10 +131,13 @@ mod tests {
         if fs::create_dir_all(&lib_dir).is_err() {
             return;
         }
+        if fs::write(temp_dir.path().join("pyvenv.cfg"), "version_info = 3.12\n").is_err() {
+            return;
+        }
 
         let result = resolve_site_package_path(temp_dir.path());
         assert!(result.is_err_and(|e| {
-            matches!(e, BridgeError::Initialization(msg) if msg.contains("No python3.X directory found"))
+            matches!(e, BridgeError::Initialization(msg) if msg.contains("site-packages not found"))
         }));
     }
 
@@ -207,6 +218,9 @@ mod tests {
         };
         let lib_dir = temp_dir.path().join(PYTHON_LIB_DIR);
         if fs::create_dir_all(&lib_dir).is_err() {
+            return;
+        }
+        if fs::write(temp_dir.path().join("pyvenv.cfg"), "version_info = 3.12\n").is_err() {
             return;
         }
 

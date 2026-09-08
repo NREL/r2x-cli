@@ -38,7 +38,7 @@ pub enum ConfigError {
     NoConfigDir,
 }
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 use which::which;
 
@@ -473,17 +473,6 @@ impl Config {
     }
 
     pub fn ensure_venv_path(&mut self) -> Result<String, ConfigError> {
-        let venv_path = self.get_venv_path();
-        let active_venv = std::env::var_os("VIRTUAL_ENV");
-        if active_venv
-            .as_deref()
-            .is_some_and(|active| Path::new(active) == Path::new(&venv_path))
-            && Path::new(&venv_path).is_dir()
-        {
-            // The launcher has already asked UV to reconcile this venv.
-            return Ok(venv_path);
-        }
-
         self.reconcile_venv_path()
     }
 
@@ -496,11 +485,23 @@ impl Config {
 
         let venv_path = self.get_venv_path();
 
-        // Ensure uv is installed first (this will auto-install if needed)
-        let uv_path = self.ensure_uv_path()?;
-
         // Use the Python version from config, or the build-selected default.
         let python_version = self.runtime_python_version()?;
+
+        if std::path::Path::new(&venv_path).exists() {
+            let existing_abi = r2x_config_venv_abi(&venv_path)?;
+            if existing_abi != python_version.abi() {
+                return Err(ConfigError::VenvCreation(format!(
+                    "Existing venv at {} uses Python ABI {}, but this r2x binary requires {}. Recreate it with `r2x venv create --yes`.",
+                    venv_path,
+                    existing_abi,
+                    python_version.abi(),
+                )));
+            }
+        }
+
+        // Ensure uv is installed first (this will auto-install if needed)
+        let uv_path = self.ensure_uv_path()?;
 
         // UV owns interpreter selection and creates the venv when needed.
         let status = Command::new(&uv_path)
@@ -527,7 +528,14 @@ impl Config {
             python_version.requested(),
         )))
     }
+}
 
+fn r2x_config_venv_abi(venv_path: &str) -> Result<String, ConfigError> {
+    venv_paths::resolve_python_abi(std::path::Path::new(venv_path))
+        .map_err(|error| ConfigError::VenvCreation(error.to_string()))
+}
+
+impl Config {
     fn runtime_python_version(&self) -> Result<PythonRuntimeVersion, ConfigError> {
         let version = runtime_python_version(self.python_version.as_deref())?;
         ensure_build_python_abi(&version)?;
@@ -1021,6 +1029,31 @@ mod tests {
         assert!(calls.contains("--allow-existing"));
         assert!(calls.contains("--managed-python"));
         assert!(calls.contains("--no-config --no-project"));
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn test_reconcile_venv_path_rejects_an_existing_venv_with_the_wrong_abi() {
+        let Ok(temp_dir) = tempfile::tempdir() else {
+            return;
+        };
+        let venv_path = temp_dir.path().join(".venv");
+        assert!(fs::create_dir_all(&venv_path).is_ok());
+        assert!(fs::write(venv_path.join("pyvenv.cfg"), "version_info = 3.13\n").is_ok());
+
+        let mut config = Config {
+            venv_path: Some(venv_path.to_string_lossy().to_string()),
+            ..Config::default()
+        };
+
+        let result = config.reconcile_venv_path();
+
+        assert!(matches!(
+            result,
+            Err(ConfigError::VenvCreation(message))
+                if message.contains("uses Python ABI 3.13")
+                    && message.contains("r2x venv create --yes")
+        ));
     }
 
     #[test]

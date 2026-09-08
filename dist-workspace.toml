@@ -33,10 +33,10 @@ compression = "xz"
 "*" = "2.28"
 
 # The launcher resolves the UV-managed Python library at runtime.
-# copy-cdylibs = true
 
-# package-libraries = ["cdylib", "cstaticlib"]
-# install-libraries = ["cdylib", "cstaticlib"]
+# The PyO3 payload must find libpython after installation. The platform-specific
+# release jobs rewrite its build-machine reference to an executable-relative
+# lookup before cargo-dist packages the binaries.
 
 
 [dist.target."x86_64-pc-windows-msvc"]
