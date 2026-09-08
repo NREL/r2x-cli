@@ -1045,13 +1045,23 @@ mod tests {
             venv_path: Some(venv_path.to_string_lossy().to_string()),
             ..Config::default()
         };
+        let incompatible_abi = if default_python_version() == "3.12" {
+            "3.13"
+        } else {
+            "3.12"
+        };
+        assert!(fs::write(
+            venv_path.join("pyvenv.cfg"),
+            format!("version_info = {incompatible_abi}\n")
+        )
+        .is_ok());
 
         let result = config.reconcile_venv_path();
 
         assert!(matches!(
             result,
             Err(ConfigError::VenvCreation(message))
-                if message.contains("uses Python ABI 3.13")
+                if message.contains(&format!("uses Python ABI {incompatible_abi}"))
                     && message.contains("r2x venv create --yes")
         ));
     }

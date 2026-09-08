@@ -66,7 +66,7 @@ impl std::error::Error for VenvPathError {}
 ///
 /// Returns an error when the venv metadata is missing or does not contain a
 /// parseable Python version.
-pub fn resolve_python_abi(venv_path: &Path) -> Result<String, VenvPathError> {
+pub(crate) fn resolve_python_abi(venv_path: &Path) -> Result<String, VenvPathError> {
     if !venv_path.is_dir() {
         return Err(VenvPathError::VenvNotFound(venv_path.to_path_buf()));
     }
