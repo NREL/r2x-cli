@@ -52,12 +52,7 @@ impl std::fmt::Display for VenvPathError {
 
 impl std::error::Error for VenvPathError {}
 
-/// Resolve the site-packages path for a Python virtual environment
-///
-/// # Platform differences
-///
-/// - **Unix/macOS**: `.venv/lib/python3.X/site-packages`
-/// - **Windows**: `.venv/Lib/site-packages`
+/// Resolve the Python major.minor ABI recorded in a virtual environment.
 ///
 /// # Arguments
 ///
@@ -65,7 +60,56 @@ impl std::error::Error for VenvPathError {}
 ///
 /// # Returns
 ///
-/// The path to the site-packages directory, or an error if not found
+/// The Python major.minor ABI recorded in the virtual environment.
+///
+/// # Errors
+///
+/// Returns an error when the venv metadata is missing or does not contain a
+/// parseable Python version.
+pub(crate) fn resolve_python_abi(venv_path: &Path) -> Result<String, VenvPathError> {
+    if !venv_path.is_dir() {
+        return Err(VenvPathError::VenvNotFound(venv_path.to_path_buf()));
+    }
+
+    let config_path = venv_path.join("pyvenv.cfg");
+    let content = fs::read_to_string(&config_path).map_err(|error| {
+        VenvPathError::PathResolution(format!(
+            "Failed to read venv metadata {}: {}",
+            config_path.display(),
+            error
+        ))
+    })?;
+
+    for key in ["version_info", "version"] {
+        if let Some(value) = content.lines().find_map(|line| {
+            let (candidate_key, value) = line.split_once('=')?;
+            candidate_key
+                .trim()
+                .eq_ignore_ascii_case(key)
+                .then_some(value.trim())
+        }) {
+            let mut parts = value.split('.');
+            let Some(major) = parts.next().filter(|part| !part.is_empty()) else {
+                continue;
+            };
+            let Some(minor) = parts.next().filter(|part| !part.is_empty()) else {
+                continue;
+            };
+            if major.chars().all(|character| character.is_ascii_digit())
+                && minor.chars().all(|character| character.is_ascii_digit())
+            {
+                return Ok(format!("{major}.{minor}"));
+            }
+        }
+    }
+
+    Err(VenvPathError::PathResolution(format!(
+        "Venv metadata at {} does not contain a Python version",
+        config_path.display()
+    )))
+}
+
+/// The path to the site-packages directory, or an error if not found.
 pub fn resolve_site_packages(venv_path: &Path) -> Result<PathBuf, VenvPathError> {
     if !venv_path.is_dir() {
         return Err(VenvPathError::VenvNotFound(venv_path.to_path_buf()));
@@ -93,18 +137,10 @@ pub fn resolve_site_packages(venv_path: &Path) -> Result<PathBuf, VenvPathError>
             )));
         }
 
-        // Find the python version directory (e.g., python3.12)
-        let python_version_dir = fs::read_dir(&lib_dir)
-            .map_err(|e| VenvPathError::PathResolution(format!("Failed to read lib dir: {}", e)))?
-            .filter_map(|e| e.ok())
-            .find(|e| e.file_name().to_string_lossy().starts_with("python"))
-            .ok_or_else(|| {
-                VenvPathError::PathResolution(
-                    "No python3.X directory found in venv/lib".to_string(),
-                )
-            })?;
-
-        let site_packages = python_version_dir.path().join("site-packages");
+        let python_abi = resolve_python_abi(venv_path)?;
+        let site_packages = lib_dir
+            .join(format!("python{python_abi}"))
+            .join("site-packages");
         if !site_packages.is_dir() {
             return Err(VenvPathError::PathResolution(format!(
                 "site-packages not found: {}",
@@ -185,6 +221,14 @@ mod tests {
         let python_dir = lib_dir.join(python_version);
         let site_packages = python_dir.join("site-packages");
         fs::create_dir_all(&site_packages).ok()?;
+        fs::write(
+            venv_path.join("pyvenv.cfg"),
+            format!(
+                "version_info = {}\n",
+                python_version.trim_start_matches("python")
+            ),
+        )
+        .ok()?;
 
         // Create bin directory with python executable
         let bin_dir = venv_path.join("bin");

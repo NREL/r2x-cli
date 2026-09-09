@@ -1935,6 +1935,13 @@ class ReEDSParser(Plugin[ReEDSConfig]):
                 );
                 return;
             }
+            if let Err(err) = fs::write(venv_path.join("pyvenv.cfg"), "version_info = 3.12\n") {
+                assert!(
+                    err.to_string().is_empty(),
+                    "Failed to create venv metadata: {err}"
+                );
+                return;
+            }
             site_packages
         };
 

@@ -198,6 +198,19 @@ fn exit_on_plugin_error(result: Result<(), r2x::plugins::error::PluginError>) {
     }
 }
 
+fn requires_python_environment(command: &Commands) -> bool {
+    matches!(
+        command,
+        Commands::List { .. }
+            | Commands::Install { .. }
+            | Commands::Remove { .. }
+            | Commands::Sync { .. }
+            | Commands::Clean { .. }
+            | Commands::Run(_)
+            | Commands::Read(_)
+    )
+}
+
 fn main() {
     // Respect NO_COLOR and TERM=dumb for accessibility and automation
     if std::env::var_os("NO_COLOR").is_some()
@@ -206,7 +219,11 @@ fn main() {
         colored::control::set_override(false);
     }
 
-    let cli = Cli::parse_from(normalize_run_global_args(std::env::args_os().collect()));
+    let mut args = std::env::args_os().collect::<Vec<_>>();
+    if let Some(program) = args.first_mut() {
+        *program = OsString::from("r2x");
+    }
+    let cli = Cli::parse_from(normalize_run_global_args(args));
 
     let mut startup_config = match config_manager::Config::load() {
         Ok(cfg) => Some(cfg),
@@ -241,7 +258,7 @@ fn main() {
         eprintln!("Warning: Failed to initialize logger: {}", e);
     }
 
-    if !matches!(cli.command, Commands::Self_(_)) {
+    if requires_python_environment(&cli.command) {
         if let Some(cfg) = startup_config.as_mut() {
             if let Err(e) = cfg.ensure_uv_path().and_then(|_| cfg.ensure_cache_path()) {
                 logger::warn(&format!("Failed to setup CLI: {}", e));
