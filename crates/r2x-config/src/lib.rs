@@ -498,6 +498,7 @@ impl Config {
                     python_version.abi(),
                 )));
             }
+            return Ok(venv_path);
         }
 
         // Ensure uv is installed first (this will auto-install if needed)
@@ -980,6 +981,37 @@ mod tests {
         let result = r2x_build_support::requested_python_abi_version("R2X_PYTHON_VERSION", "  ");
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_reconcile_venv_path_reuses_existing_compatible_venv() {
+        let Ok(temp_dir) = tempfile::tempdir() else {
+            return;
+        };
+        let venv_path = temp_dir.path().join(".venv");
+        assert!(fs::create_dir_all(&venv_path).is_ok());
+        assert!(fs::write(
+            venv_path.join("pyvenv.cfg"),
+            format!("version_info = {}\n", default_python_version())
+        )
+        .is_ok());
+
+        // This is an existing path, not an executable. If reconciliation tries
+        // to invoke uv, the test fails before it can return the venv path.
+        let uv_path = temp_dir.path().join("not-an-executable");
+        assert!(fs::write(&uv_path, "").is_ok());
+        let mut config = Config {
+            uv_path: Some(uv_path.to_string_lossy().to_string()),
+            venv_path: Some(venv_path.to_string_lossy().to_string()),
+            ..Config::default()
+        };
+
+        let result = config.reconcile_venv_path();
+
+        assert!(
+            matches!(result.as_deref(), Ok(path) if path == venv_path.to_string_lossy()),
+            "existing compatible venv was not reused: {result:?}"
+        );
     }
 
     #[test]
