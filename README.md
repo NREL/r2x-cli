@@ -1,21 +1,14 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/r2x-logo-white.svg">
   <source media="(prefers-color-scheme: light)" srcset="./assets/r2x-logo-full-color.svg">
-  <img align="left" alt="R2X framework logo" src="./assets/r2x-logo-full-color.svg" width="180" hspace="16">
+  <img align="left" alt="R2X framework logo" src="./assets/r2x-logo-full-color.svg" width="220" height="92" hspace="10">
 </picture>
+<img align="left" alt="" width="0" height="92" hspace="10">
 
-<h1>r2x-cli</h1>
+#### r2x-cli
+> Plugin manager and pipeline runner for model interoperability.
 
-<p>Plugin manager and pipeline runner for model interoperability.</p>
-
-<p>
-  <a href="https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml"><img alt="CI" src="https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg"></a>
-  <a href="https://github.com/NatLabRockies/r2x-cli/releases/latest"><img alt="Latest r2x-cli release" src="https://img.shields.io/github/v/release/NatLabRockies/r2x-cli?display_name=tag&amp;label=latest%20release&amp;color=0079c2&amp;logo=github"></a>
-  <a href="docs/development.md"><img alt="Rust 1.72 or newer" src="https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&amp;logoColor=white"></a>
-  <a href="docs/development.md"><img alt="Python 3.11 or newer" src="https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&amp;logoColor=white"></a>
-  <a href="https://docs.astral.sh/uv/"><img alt="Managed with uv" src="https://img.shields.io/badge/managed%20with-uv-6f42c1"></a>
-  <a href="./LICENSE.txt"><img alt="BSD 3-Clause license" src="https://img.shields.io/badge/license-BSD--3--Clause-blue.svg"></a>
-</p>
+[![CI](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml) [![Latest release](https://img.shields.io/github/v/release/NatLabRockies/r2x-cli?display_name=tag&label=latest%20release&color=0079c2&logo=github)](https://github.com/NatLabRockies/r2x-cli/releases/latest) [![Rust 1.72+](https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&logoColor=white)](docs/development.md) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)](docs/development.md) [![BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](./LICENSE.txt)
 
 <br clear="left">
 
