@@ -63,4 +63,3 @@ cache-backed location, and diagnostics are written to stderr.
 Use `-o` and `-i` when the boundary must survive across jobs or be tracked by a
 workflow manager. A durable JSON entrypoint is stored beside its
 `<stem>_time_series/` directory. Keep the entrypoint and sidecars together.
-See [Torc plugin streams](torc-plugin-streams.md) for examples.

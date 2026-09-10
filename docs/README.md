@@ -10,8 +10,6 @@ your goal.
   install plugins, and run a pipeline.
 - [Plugin management](plugin-management.md): install plugins from PyPI, Git, or
   local paths; inspect discovery; and refresh or remove plugins.
-- [Torc plugin streams](torc-plugin-streams.md): connect plugins with Unix
-  pipes or durable artifacts in Torc jobs.
 
 ## Reference
 

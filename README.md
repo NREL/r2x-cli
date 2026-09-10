@@ -75,7 +75,6 @@ guides for r2x-cli:
 - [Plugin management](docs/plugin-management.md): install, inspect, upgrade, and remove plugins.
 - [Architecture](docs/architecture.md): crates, runtime boundaries, and plugin discovery.
 - [Development](docs/development.md): source builds, tests, linting, and troubleshooting.
-- [Torc plugin streams](docs/torc-plugin-streams.md): compose live and durable plugin boundaries.
 
 ## Updates
 
