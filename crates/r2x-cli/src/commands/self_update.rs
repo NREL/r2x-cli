@@ -66,14 +66,14 @@ fn handle_self_update(
     let message = InstallSource::detect()
         .map(|source| {
             format!(
-                "r2x was installed via {} and cannot self-update. To update, run `{}`",
+                "r2x-cli was installed via {} and cannot self-update. To update, run `{}`",
                 source.description(),
                 source.update_instructions()
             )
         })
         .unwrap_or_else(|| {
-            "r2x was installed via an external package manager and cannot self-update. \
-             Please use your package manager to update r2x."
+            "r2x-cli was installed via an external package manager and cannot self-update. \
+             Please use your package manager to update r2x-cli."
                 .to_string()
         });
 
@@ -84,14 +84,14 @@ fn handle_self_update(
 fn format_install_hint() -> String {
     match InstallSource::detect() {
         Some(source) => format!(
-            "{}{} You installed r2x via {}. To update, run `{}`",
+            "{}{} You installed r2x-cli via {}. To update, run `{}`",
             "hint".cyan().bold(),
             ":".bold(),
             source.description(),
             source.update_instructions()
         ),
         None => format!(
-            "{}{} If you installed r2x with cargo, pipx, brew, or another package manager, update r2x with `cargo install --locked r2x`, `pipx upgrade`, `brew upgrade`, or similar.",
+            "{}{} If you installed r2x-cli with cargo, pipx, brew, or another package manager, update it with `cargo install --locked r2x`, `pipx upgrade`, `brew upgrade`, or similar.",
             "hint".cyan().bold(),
             ":".bold()
         ),
@@ -101,7 +101,7 @@ fn format_install_hint() -> String {
 #[cfg(feature = "self-update")]
 fn bail_not_standalone() -> Result<i32> {
     eprintln!(
-        "{}{} Self-update is only available for r2x binaries installed via the standalone installation scripts.",
+        "{}{} Self-update is only available for r2x-cli binaries installed via the standalone installation scripts.",
         "error".red().bold(),
         ":".bold(),
     );
@@ -127,9 +127,9 @@ async fn self_update(version: Option<String>, token: Option<String>, dry_run: bo
     }
 
     // Load the "install receipt" for the current binary. If the receipt is not found, then
-    // r2x was likely installed via a package manager.
+    // r2x-cli was likely installed via a package manager.
     let Ok(updater) = updater.load_receipt() else {
-        debug!("no receipt found; assuming r2x was installed via a package manager");
+        debug!("no receipt found; assuming r2x-cli was installed via a package manager");
         return bail_not_standalone();
     };
 
@@ -139,11 +139,11 @@ async fn self_update(version: Option<String>, token: Option<String>, dry_run: bo
     }
 
     // Ensure the receipt is for the current binary. If it's not, then the user likely has multiple
-    // r2x binaries installed, and the current binary was _not_ installed via the standalone
+    // r2x-cli binaries installed, and the current binary was _not_ installed via the standalone
     // installation scripts.
     if !updater.check_receipt_is_for_this_executable()? {
         debug!(
-            "receipt is not for this executable; assuming r2x was installed via a package manager"
+            "receipt is not for this executable; assuming r2x-cli was installed via a package manager"
         );
         return bail_not_standalone();
     }
