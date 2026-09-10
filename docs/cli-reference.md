@@ -1,176 +1,150 @@
-# CLI Reference
+# r2x-cli CLI Reference
 
-## Running a Translation
+This page is a compact overview of the `r2x-cli` command surface. Run
+`r2x --help` for the complete command tree and `r2x <command> --help` for
+command-specific options.
 
-### Initialize a new pipeline
+Workflow-specific plugin options, parser settings, pipeline configuration, and
+application configuration are intentionally not documented here. See the
+relevant plugin or workflow documentation for those details.
 
-```bash
-r2x init
-```
+## Common commands
 
-### Run a pipeline
+| Goal | Command |
+| --- | --- |
+| Show the installed version | `r2x --version` |
+| Initialize a workspace file | `r2x init` |
+| Install a plugin | `r2x install <package>` |
+| List installed plugins | `r2x list` |
+| Run a target | `r2x run <target>` |
+| Inspect a system | `r2x read <file>` |
+| Update a standalone installation | `r2x self update` |
 
-```bash
-r2x run <file-name>.yaml <pipeline-name>
-```
+## Plugins
 
-The `<pipeline-name>` is the key under the `pipelines` entry in the YAML file.
-
-**Common run flags:**
-
-| Flag | Description |
-|------|-------------|
-| `--log-python` | Stream Python logs to the console |
-| `-n` / `--dry-run` | Validate the pipeline without executing it |
-| `--list` | List all pipelines defined in the YAML file |
-| `--print` | Print the resolved pipeline config without running |
-| `-o <file>` | Write output to a file instead of stdout |
-| `--pdb` | Enter post-mortem PDB on an uncaught plugin exception (interactive terminals only) |
-
-### Run a single plugin directly
+The common plugin commands are:
 
 ```bash
-r2x run plugin <plugin-name>               # run with interactive config
-r2x run plugin <plugin-name> --show-help   # show plugin-specific help
-r2x run plugin <plugin-name> --pdb --input input.json  # debug an uncaught exception
-r2x run plugin <plugin-name> --benchmark   # print benchmark summary
-r2x run plugin <plugin-name> --repeat <N>  # run N times
+r2x install <package>
+r2x install -e <path>
+r2x list
+r2x remove <package>
+r2x sync
+r2x sync --upgrade
+r2x clean --yes
 ```
 
-## Post-mortem debugging
+See [Plugin management](plugin-management.md) for package sources and plugin
+lifecycle guidance.
 
-Pass `--pdb` to a direct plugin or pipeline run to enter Python's
-post-mortem debugger for an uncaught plugin exception. In a pipeline, the
-failure is debugged in the failing plugin and the pipeline stops there.
-Continue or quit PDB to return the original failure and nonzero exit status.
+## Run
 
-`--pdb` requires an interactive stdin and stderr and fails immediately in
-piped or CI execution. Debugger prompts are written to stderr. For direct
-plugin debugging, prefer `--input FILE` so stdin remains available for PDB
-commands. Exceptions caught by plugin code do not start a debugger.
-
-## Pipeline YAML Structure
-
-A pipeline file has four top-level sections:
-
-```yaml
-variables:
-  # reusable values
-
-pipelines:
-  # named plugin step lists
-
-config:
-  # per-plugin configuration
-
-output_folder: ${some_variable}
-```
-
-`r2x-cli` supports variable substitution in strings using both `${var}` and `$(var)`.
-
-### Naming convention for plugin steps
-
-In `pipelines`, each step uses the fully-qualified plugin identifier:
-
-`<package-name>.<plugin-name>`
-
-Examples:
-
-- `r2x-reeds.reeds-parser`
-- `r2x-sienna.sienna-parser`
-- `r2x-sienna.sienna-exporter`
-- `r2x-plexos.plexos-parser`
-- `r2x-plexos.plexos-exporter`
-
-The same identifier must be used as the key under `config`.
-
-When no other installed plugin shares the same name, the short form (plugin name only) is equivalent:
-
-```yaml
-pipelines:
-  r2s:
-    - r2x-reeds.reeds-parser
-    - break-gens        # equivalent to r2x-reeds.break-gens when unambiguous
-```
-
-## Configuration
+`r2x run` accepts either a direct plugin reference or a file and target name.
+Plugin-specific arguments are passed through after the target.
 
 ```bash
-r2x config
-r2x config show
+# Direct plugin mode
+r2x run <plugin-ref> [PLUGIN_OPTIONS...]
+
+# File and named-target mode
+r2x run <file.yaml> <name>
 ```
 
-Set a configuration value:
+Common file and named-target options:
+
+| Option | Purpose |
+| --- | --- |
+| `--list` | List available targets in the file. |
+| `--print` | Print the resolved target without executing it. |
+| `-n`, `--dry-run` | Validate without executing. |
+| `-o`, `--output <file>` | Write output to a file instead of stdout. |
+| `--zip` | Save file-mode output as an infrasys ZIP archive. |
+| `--pdb` | Open Python post-mortem debugging after an uncaught plugin failure. |
+
+Direct plugin options include:
 
 ```bash
-r2x config set <key> <value>
-# Example:
-r2x config set python-version 3.13
+r2x run plugin <plugin-ref> --show-help
+r2x run plugin <plugin-ref> --input <file>
+r2x run plugin <plugin-ref> --output <file>
+r2x run plugin <plugin-ref> --repeat <N> --benchmark
+r2x run plugin <plugin-ref> --pdb --input <file>
 ```
 
-Show or set the config file path:
+`--pdb` requires an interactive terminal. Use `--input <file>` when debugging
+a plugin so stdin remains available for debugger commands.
+
+## Read
+
+`r2x read` opens an interactive IPython session for a system artifact:
 
 ```bash
-r2x config path
-r2x config path <new-path>
+r2x read <file.json>
+r2x read <file.zip> --zip
+r2x read --exec <script.py> <file.json>
+r2x read --exec <script.py> --interactive <file.json>
 ```
 
-Reset to defaults:
+When no file is provided, JSON can be read from stdin:
 
 ```bash
-r2x config reset
-r2x config reset --yes   # skip confirmation prompt
+cat system.json | r2x read
 ```
 
-## Log Management
+Use `--no-banner` to suppress the interactive startup banner.
+
+## Runtime commands
+
+The runtime commands manage the Python interpreter and virtual environment
+used by plugins:
 
 ```bash
-r2x log
-r2x log show
+r2x python show
+r2x python install
+r2x python install <version>
+r2x python path
+
+r2x venv create --yes
+r2x venv path
+r2x venv path <new-path>
 ```
 
-Show or set the log file path:
+## Update
+
+Standalone installer users can update in place:
 
 ```bash
-r2x log path
-r2x log path <new-path>
+r2x self update
+r2x self update --dry-run
+r2x self update <version>
 ```
 
-Update logging settings:
+The `upgrade` alias is also available:
 
 ```bash
-r2x log set log-python true       # enable Python logs on console by default
-r2x log set log-python false
-r2x log set no-stdout true        # capture plugin stdout in logs by default
-r2x log set max-size <bytes>      # e.g., 26214400 for 25 MiB
+r2x self upgrade
 ```
 
-## Cache
+Installations managed by Cargo, Homebrew, or another package manager should be
+updated with that package manager.
+
+## Global options
+
+These options can be used with commands that support the shared CLI options:
+
+| Option | Purpose |
+| --- | --- |
+| `-q`, `--quiet` | Reduce informational output. Repeat as `-qq` to suppress plugin stdout. |
+| `-v`, `--verbose` | Increase diagnostic output. Repeat as `-vv` for trace output. |
+| `--log-python` | Show Python logs on the console. |
+| `--no-stdout` | Do not write captured plugin stdout to the log. |
+
+## Help
+
+Use the built-in help for the complete surface, including configuration and
+logging commands that are intentionally outside this compact reference:
 
 ```bash
-r2x cache clean
-r2x cache path
-r2x cache path <new-path>
-```
-
-## Reading a System
-
-Load a Sienna system from a JSON file and open an interactive IPython session:
-
-```bash
-r2x read <system.json>
-r2x read                             # read from stdin
-r2x read --no-banner <system.json>   # suppress the startup banner
-```
-
-Execute a Python script against the loaded system:
-
-```bash
-r2x read --exec <script.py> <system.json>
-```
-
-Drop into an interactive IPython session after running a script:
-
-```bash
-r2x read -i --exec <script.py> <system.json>
+r2x --help
+r2x <command> --help
 ```

@@ -10,9 +10,9 @@ documentation = { workspace = true }
 rust-version = { workspace = true }
 build = "build.rs"
 autobins = false
-description = "A framework plugin manager for the r2x power systems modeling ecosystem."
+description = "The r2x-cli plugin manager for model interoperability."
 readme = { workspace = true }
-keywords = ["power-systems", "r2x", "cli", "plugin-manager", "uv"]
+keywords = ["interoperability", "r2x", "cli", "plugin-manager", "uv"]
 categories = ["command-line-utilities", "development-tools"]
 
 [package.metadata.wix]

@@ -16,8 +16,8 @@ use std::ffi::OsString;
 #[command(name = "r2x")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 #[command(
-    about = "Energy translator framework",
-    long_about = "R2X is a CLI tool for translating models."
+    about = "model interoperability CLI",
+    long_about = "r2x-cli is the command-line interface for model interoperability."
 )]
 struct Cli {
     #[command(flatten)]
@@ -29,7 +29,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Configure r2x tool
+    /// Configure r2x-cli
     #[command(subcommand_required = false, arg_required_else_help = false)]
     Config {
         /// Output in JSON format

@@ -1,3 +1,9 @@
+//! Build-script helpers for selecting and validating Python ABIs.
+//!
+//! This crate shares the Python version checks used by workspace build scripts.
+//! It validates `PYO3_PYTHON` against `R2X_PYTHON_VERSION` and the supported
+//! Python major and minor version range before PyO3-dependent crates build.
+
 pub fn detect_build_python_version() -> Result<Option<String>, String> {
     let requested_version = requested_build_python_version();
     let requested_abi = requested_version

@@ -69,7 +69,7 @@
 
         <Package Id='*'
             Keywords='Installer'
-            Description='A framework plugin manager for the r2x power systems modeling ecosystem.'
+            Description='The r2x-cli plugin manager for model interoperability.'
             Manufacturer='pesap; Micah Webb'
             InstallerVersion='450'
             Languages='1033'

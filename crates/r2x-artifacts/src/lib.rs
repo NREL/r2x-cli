@@ -1,4 +1,9 @@
-//! Artifact storage and transport for r2x pipeline systems.
+//! Artifact storage and transport for r2x-cli pipeline boundaries.
+//!
+//! This crate keeps JSON entrypoints and their sidecar directories together
+//! when pipeline steps communicate through pipes, files, or job handoffs.
+//! It provides temporary workspaces, safe output publication, ZIP export, and
+//! cache-backed handoffs for durable artifacts.
 
 use r2x_python::errors::BridgeError;
 use thiserror::Error;

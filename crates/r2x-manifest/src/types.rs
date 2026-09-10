@@ -2,7 +2,7 @@
 //!
 //! This module provides:
 //! - 64-byte cache-aligned structs for hot paths
-//! - Arc<str> interning for string deduplication
+//! - `Arc<str>` interning for string deduplication
 //! - SmallVec for inline small collections
 //! - Pre-computed hashes for fast comparison
 

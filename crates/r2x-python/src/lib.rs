@@ -1,17 +1,11 @@
-//! Python-Rust bridge for plugin execution
+//! Python runtime bridge for invoking r2x plugins.
 //!
-//! This bridge provides a minimal, focused interface for:
-//! 1. Loading plugin package metadata via entry points
-//! 2. Executing plugins with configuration
+//! This crate initializes PyO3 from r2x-cli's configured virtual environment,
+//! resolves `PYTHONHOME` and `site-packages`, loads plugin packages, and invokes
+//! plugin entry points with serialized arguments and artifacts.
 //!
-//! Plugin discovery uses AST-based analysis instead of runtime inspection,
-//! making it more efficient and reducing Python interpreter overhead.
-//!
-//! ## PYTHONHOME Configuration
-//!
-//! PYTHONHOME is resolved from the venv's `pyvenv.cfg` file to ensure
-//! compatibility with PyO3 (which is linked at build time). This avoids
-//! version mismatches between the discovered Python and the compiled binary.
+//! Plugin discovery is delegated to `r2x-ast`; this crate owns runtime
+//! execution and Python-side logging configuration.
 
 pub mod errors;
 pub mod plugin_invoker;

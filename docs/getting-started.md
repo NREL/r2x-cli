@@ -1,60 +1,139 @@
-# Getting Started
+# r2x-cli Getting Started
 
-## Installation
+This guide installs `r2x-cli`, initializes a workspace, and gets a plugin ready for
+a pipeline. For exact command and flag behavior, see the [CLI
+reference](cli-reference.md).
 
-Install the most recent `r2x-cli` release for your platform:
+## Install
 
-**macOS / Linux**
+### macOS and Linux
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf \
-  https://github.com/NatLabRockies/r2x-cli/releases/latest/download/r2x-installer.sh | sh
+curl -fsSL https://github.com/NatLabRockies/r2x-cli/releases/latest/download/r2x-installer.sh | sh
 ```
 
-**Windows**
+The installer places the `r2x` command and its adjacent runtime payload in
+`~/.local/bin` by default. Restart your shell, or source the environment file
+shown by the installer, if `r2x` is not immediately available.
+
+### Windows
 
 ```powershell
 powershell -ExecutionPolicy Bypass -c "irm https://github.com/NatLabRockies/r2x-cli/releases/latest/download/r2x-installer.ps1 | iex"
 ```
 
-## Verify the Installation
+### Verify
 
 ```bash
 r2x --version
 ```
 
+`r2x --version` only checks the launcher. Commands that install or run Python
+plugins also need `uv` and a managed Python environment. On first use,
+`r2x-cli` will offer to install `uv` with its official installer when `uv` is
+not found.
+The default managed Python version is selected when the binary is built,
+usually Python 3.12 for release builds.
+
+## Initialize a workspace
+
+Create a pipeline template in a new or existing working directory:
+
+```bash
+mkdir my-r2x-workspace
+cd my-r2x-workspace
+r2x init
+```
+
+This creates `pipeline.yaml`. Replace its example plugin names and settings
+with the plugins and input files for your workflow.
+
+## Install and inspect plugins
+
+Install a plugin from PyPI:
+
+```bash
+r2x install r2x-reeds
+r2x list
+```
+
+Install a plugin from GitHub with a branch, tag, or commit:
+
+```bash
+r2x install --branch main gh:NatLabRockies/r2x-reeds
+```
+
+See [Plugin management](plugin-management.md) for editable installs, Git
+URLs, subdirectories, cache behavior, and upgrades.
+
+## Validate and run a pipeline
+
+List the pipelines in a configuration file:
+
+```bash
+r2x run pipeline.yaml --list
+```
+
+Preview a named pipeline without executing its plugins:
+
+```bash
+r2x run pipeline.yaml my-pipeline --dry-run
+```
+
+Run it:
+
+```bash
+r2x run pipeline.yaml my-pipeline
+```
+
 ## Update
 
-If `r2x-cli` is already installed:
+For a standalone installer installation, update to the latest release with:
 
 ```bash
 r2x self update
 ```
 
-## Cache Management
-
-Clean the R2X cache:
+The `upgrade` alias is also available:
 
 ```bash
-r2x cache clean
+r2x self upgrade
 ```
 
-## Python & Virtual Environment
+If `r2x-cli` was installed with Cargo, Homebrew, or another package manager, use
+that package manager's update command instead.
 
-### Manage the Python version
+## Manage the runtime
+
+Show the configured Python version and managed environment:
 
 ```bash
-r2x python show                  # show configured Python version and venv info
-r2x python path                  # show Python executable path in the venv
-r2x python install               # install the default Python version
-r2x python install <version>     # install a specific version (e.g., 3.13)
+r2x python show
 ```
 
-### Manage the virtual environment
+Install the configured Python version, or select another supported version:
 
 ```bash
-r2x venv create           # create or recreate the virtual environment
-r2x venv create --yes     # skip confirmation prompt
-r2x venv path             # show the venv path
-r2x venv path <new-path>  # set a new venv path
+r2x python install
+r2x python install 3.13
+```
+
+Show the Python executable used by the managed environment:
+
+```bash
+r2x python path
+```
+
+Create or recreate the managed virtual environment after changing its Python
+ABI:
+
+```bash
+r2x venv create --yes
+```
+
+Set or inspect the virtual environment path:
+
+```bash
+r2x venv path
+r2x venv path /path/to/r2x-venv
 ```
