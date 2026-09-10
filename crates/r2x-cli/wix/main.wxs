@@ -69,7 +69,7 @@
 
         <Package Id='*'
             Keywords='Installer'
-            Description='A plugin manager for model interoperability with r2x.'
+            Description='The r2x-cli plugin manager for model interoperability.'
             Manufacturer='pesap; Micah Webb'
             InstallerVersion='450'
             Languages='1033'

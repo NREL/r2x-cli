@@ -1,4 +1,4 @@
-//! Integration tests for r2x
+//! Integration tests for r2x-cli
 
 use assert_cmd::{
     cargo::{cargo_bin, cargo_bin_cmd},
@@ -71,7 +71,9 @@ fn test_help() {
         .arg("--help")
         .assert()
         .success()
-        .stdout(predicate::str::contains("R2X is a CLI tool"));
+        .stdout(predicate::str::contains(
+            "r2x-cli is the command-line interface",
+        ));
 }
 
 #[test]
@@ -602,7 +604,7 @@ fn test_self_update_requires_standalone_receipt() {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "Self-update is only available for r2x binaries installed via the standalone installation scripts",
+            "Self-update is only available for r2x-cli binaries installed via the standalone installation scripts",
         ));
 }
 
