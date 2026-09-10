@@ -1,7 +1,7 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/r2x-logo-white.svg">
   <source media="(prefers-color-scheme: light)" srcset="./assets/r2x-logo-full-color.svg">
-  <img align="left" alt="R2X framework logo" src="./assets/r2x-logo-full-color.svg" width="250" hspace="18">
+  <img align="left" alt="R2X framework logo" src="./assets/r2x-logo-full-color.svg" width="180" hspace="16">
 </picture>
 
 <h1>r2x-cli</h1>
