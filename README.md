@@ -3,23 +3,38 @@
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/r2x-logo-white.svg">
   <source media="(prefers-color-scheme: light)" srcset="./assets/r2x-logo-full-color.svg">
-  <img alt="R2X" src="./assets/r2x-logo-full-color.svg" width="360">
+  <img alt="r2x-cli" src="./assets/r2x-logo-full-color.svg" width="420">
 </picture>
+
+<h1>r2x-cli</h1>
 
 <p>Plugin manager and pipeline runner for model interoperability.</p>
 
-[![CI](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml)
-[![Release](https://github.com/NatLabRockies/r2x-cli/actions/workflows/release.yml/badge.svg?event=push)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/release.yml)
-[![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)](./LICENSE.txt)
+<p>
+  <a href="https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml"><img alt="CI" src="https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg"></a>
+  <a href="https://github.com/NatLabRockies/r2x-cli/actions/workflows/release.yml?event=push"><img alt="Release" src="https://img.shields.io/github/actions/workflow/status/NatLabRockies/r2x-cli/release.yml?event=push&label=release"></a>
+  <a href="docs/development.md"><img alt="Rust 1.72 or newer" src="https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&logoColor=white"></a>
+  <a href="docs/development.md"><img alt="Python 3.11 or newer" src="https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white"></a>
+  <a href="https://docs.astral.sh/uv/"><img alt="Managed with uv" src="https://img.shields.io/badge/managed%20with-uv-6f42c1"></a>
+  <a href="./LICENSE.txt"><img alt="BSD 3-Clause license" src="https://img.shields.io/badge/license-BSD--3--Clause-blue.svg"></a>
+</p>
 
 </div>
 
-`r2x-cli` discovers Python plugins, chains them into pipelines, and manages the
-runtime needed to translate models between formats.
-The `r2x` command is written in Rust and runs plugins in a managed Python
-environment.
+<p align="center">
+  <a href="#quickstart">Quickstart</a> ·
+  <a href="#what-r2x-cli-does">Capabilities</a> ·
+  <a href="#rust-workspace">Rust workspace</a> ·
+  <a href="#documentation">Documentation</a> ·
+  <a href="#development">Development</a>
+</p>
 
-## Quick start
+`r2x-cli` is a Rust CLI for composing Python plugins into repeatable model
+translation pipelines.
+It discovers installed plugins, provisions the Python runtime with `uv`, and
+keeps pipeline data and sidecar artifacts together across process boundaries.
+
+## Quickstart
 
 ### Install
 
@@ -51,8 +66,10 @@ r2x install r2x-reeds
 r2x list
 ```
 
-Edit the generated `pipeline.yaml` for your input data and installed plugins,
-then validate and run a named pipeline:
+`r2x init` creates a starter `pipeline.yaml`.
+Edit it for your input data and installed plugins.
+
+### Inspect and run a pipeline
 
 ```bash
 r2x run pipeline.yaml --list
@@ -60,32 +77,64 @@ r2x run pipeline.yaml <pipeline-name> --dry-run
 r2x run pipeline.yaml <pipeline-name>
 ```
 
-On the first command that needs Python, `r2x-cli` uses `uv` to provision a
-managed CPython runtime and the r2x virtual environment. A system Python
-executable is not required. If `uv` is not installed, `r2x-cli` offers to
-install it with the official installer.
+The first command that needs Python uses `uv` to provision a managed CPython
+runtime and the r2x virtual environment.
+A system Python executable is not required.
+If `uv` is not installed, r2x-cli offers to install it with the official
+installer.
+
+## What r2x-cli does
+
+| Capability | What it provides |
+| --- | --- |
+| Plugin discovery | Reads Python package metadata and source with static AST analysis before runtime invocation. |
+| Pipeline execution | Chains plugins through named pipelines, Unix pipes, or durable JSON entrypoints. |
+| Artifact handoff | Keeps JSON entrypoints beside their time-series and other sidecar directories. |
+| Runtime management | Selects a compatible Python ABI and manages the `uv` virtual environment used by plugins. |
+
+## Rust workspace
+
+The command is backed by a focused Rust workspace.
+Each package owns one boundary in the CLI and runtime:
+
+| Package | Boundary |
+| --- | --- |
+| [`r2x`](crates/r2x-cli/) | CLI commands plus the `r2x` launcher and `r2x-runtime` payload. |
+| [`r2x-config`](crates/r2x-config/) | Configuration, cache paths, Python versions, and virtual environments. |
+| [`r2x-manifest`](crates/r2x-manifest/) | Persistent plugin metadata, package relationships, and runtime bindings. |
+| [`r2x-ast`](crates/r2x-ast/) | Static discovery of Python plugin entry points and configuration schemas. |
+| [`r2x-python`](crates/r2x-python/) | PyO3 initialization and plugin invocation in the managed runtime. |
+| [`r2x-artifacts`](crates/r2x-artifacts/) | JSON, ZIP, sidecar, and durable pipeline artifact handoff. |
+| [`r2x-logger`](crates/r2x-logger/) | Verbosity, file logging, progress reporting, and plugin diagnostics. |
+| [`r2x-build-support`](crates/r2x-build-support/) | Build-time Python ABI detection and validation. |
+
+See [the architecture guide](docs/architecture.md) for runtime boundaries and
+data flow.
 
 ## Documentation
 
-The [documentation index](docs/README.md) routes readers to task-focused
-guides for r2x-cli:
+| Goal | Start here |
+| --- | --- |
+| Install r2x-cli and run a first pipeline | [Getting started](docs/getting-started.md) |
+| Look up commands, flags, and runtime behavior | [CLI reference](docs/cli-reference.md) |
+| Install, inspect, upgrade, or remove plugins | [Plugin management](docs/plugin-management.md) |
+| Understand crates, discovery, and artifact boundaries | [Architecture](docs/architecture.md) |
+| Build from source and run repository checks | [Development](docs/development.md) |
 
-- [Getting started](docs/getting-started.md): install, initialize, and run a pipeline.
-- [CLI reference](docs/cli-reference.md): common commands, shared flags, runtime commands, and system inspection.
-- [Plugin management](docs/plugin-management.md): install, inspect, upgrade, and remove plugins.
-- [Architecture](docs/architecture.md): crates, runtime boundaries, and plugin discovery.
-- [Development](docs/development.md): source builds, tests, linting, and troubleshooting.
+The [documentation index](docs/README.md) routes readers to the complete set of
+user and developer guides.
 
-## Updates
+## Development
 
-Standalone installer users can update to the latest release with:
+Install Rust, `uv`, Python 3.11 or newer, and `just`.
+Run the full local check set with:
 
 ```bash
-r2x self update
+just all
 ```
 
-Users who installed with Cargo, Homebrew, or another package manager should
-use that package manager's update command.
+See [Development](docs/development.md) for source builds, Python ABI selection,
+targeted checks, and troubleshooting.
 
 ## Model interoperability
 
@@ -99,6 +148,18 @@ interoperability:
 - [r2x-sienna](https://github.com/NatLabRockies/r2x-sienna): Sienna parsing and export.
 - [infrasys](https://github.com/NatLabRockies/infrasys): system storage and time-series management.
 
+## Updates
+
+Standalone installer users can update to the latest release with:
+
+```bash
+r2x self update
+```
+
+Users who installed with Cargo, Homebrew, or another package manager should
+use that package manager's update command.
+
 ## License
 
-BSD-3-Clause. See [LICENSE.txt](./LICENSE.txt) for the full text.
+BSD-3-Clause.
+See [LICENSE.txt](./LICENSE.txt) for the full license text.
