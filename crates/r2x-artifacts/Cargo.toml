@@ -8,7 +8,7 @@ license = { workspace = true }
 homepage = { workspace = true }
 documentation = { workspace = true }
 rust-version = { workspace = true }
-description = "Directory-backed and ZIP artifact handling for r2x"
+description = "Directory-backed and ZIP artifact handling for r2x-cli model interoperability pipelines"
 
 [dependencies]
 r2x-config = { workspace = true }

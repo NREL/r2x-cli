@@ -11,11 +11,11 @@
 ## Project Context
 
 - The product and repository are `r2x-cli`.
-- `r2x` names the broader power systems modeling ecosystem in prose.
+- `r2x` names the broader model interoperability domain in prose.
 - Preserve the official `R2X` spelling only when matching an external brand or repository name.
 - Use `r2x-cli` for the CLI product, repository, documentation, releases, and implementation as a whole.
 - Keep `r2x` unchanged for the executable command, shell commands, command output, paths, environment variables, and technical identifiers.
-- Use actual package names such as `r2x-core` and `r2x-reeds` for ecosystem packages.
+- Use actual package names such as `r2x-core` and `r2x-reeds` for model interoperability packages.
 - Keep r2x-cli documentation focused on the generic CLI product.
 - Do not add application-specific translation guides, parser configuration, or application configuration to the core CLI documentation.
 - Keep this terminology in `AGENTS.md`; do not recreate `CONTEXT.md` unless explicitly requested.

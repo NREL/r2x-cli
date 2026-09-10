@@ -1,6 +1,6 @@
 # r2x-cli Architecture
 
-`r2x-cli` is a Rust CLI product for the r2x ecosystem. It keeps plugin discovery,
+`r2x-cli` is a Rust CLI product for model interoperability. It keeps plugin discovery,
 package management, pipeline execution, and Python runtime setup behind one
 command-line interface.
 

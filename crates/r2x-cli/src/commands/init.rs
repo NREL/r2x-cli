@@ -7,8 +7,8 @@ use std::path::Path;
 
 const DEFAULT_FILENAME: &str = "pipeline.yaml";
 
-const PIPELINE_TEMPLATE: &str = r#"# R2X Pipeline Configuration
-# This file defines pipelines for processing power system data
+const PIPELINE_TEMPLATE: &str = r#"# r2x Pipeline Configuration
+# This file defines pipelines for model interoperability
 
 # Variables for substitution (use ${var} or $(var) syntax)
 variables:

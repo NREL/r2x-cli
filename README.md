@@ -6,7 +6,7 @@
   <img alt="R2X" src="./assets/r2x-logo-full-color.svg" width="360">
 </picture>
 
-<p>Plugin manager and pipeline runner for the r2x power systems modeling ecosystem.</p>
+<p>Plugin manager and pipeline runner for model interoperability.</p>
 
 [![CI](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml)
 [![Release](https://github.com/NatLabRockies/r2x-cli/actions/workflows/release.yml/badge.svg?event=push)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/release.yml)
@@ -15,7 +15,7 @@
 </div>
 
 `r2x-cli` discovers Python plugins, chains them into pipelines, and manages the
-runtime needed to translate power system models from one format to another.
+runtime needed to translate models between formats.
 The `r2x` command is written in Rust and runs plugins in a managed Python
 environment.
 
@@ -88,9 +88,10 @@ r2x self update
 Users who installed with Cargo, Homebrew, or another package manager should
 use that package manager's update command.
 
-## Ecosystem
+## Model interoperability
 
-r2x-cli orchestrates independently published r2x packages:
+r2x-cli orchestrates independently published packages that enable model
+interoperability:
 
 - [r2x-core](https://github.com/NatLabRockies/r2x-core): shared plugin framework.
 - [R2X](https://github.com/NatLabRockies/R2X): translation plugins and model packages.
