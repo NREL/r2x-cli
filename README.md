@@ -1,6 +1,8 @@
-<table>
-<tr>
-<td valign="middle" width="64%">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/r2x-logo-white.svg">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/r2x-logo-full-color.svg">
+  <img align="left" alt="R2X framework logo" src="./assets/r2x-logo-full-color.svg" width="250" hspace="18">
+</picture>
 
 <h1>r2x-cli</h1>
 
@@ -8,29 +10,14 @@
 
 <p>
   <a href="https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml"><img alt="CI" src="https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg"></a>
-  <a href="https://github.com/NatLabRockies/r2x-cli/actions/workflows/release.yml"><img alt="Release workflow on main" src="https://img.shields.io/github/actions/workflow/status/NatLabRockies/r2x-cli/release.yml?branch=main&amp;label=release"></a>
+  <a href="https://github.com/NatLabRockies/r2x-cli/releases/latest"><img alt="Latest r2x-cli release" src="https://img.shields.io/github/v/release/NatLabRockies/r2x-cli?display_name=tag&amp;label=latest%20release&amp;color=0079c2&amp;logo=github"></a>
   <a href="docs/development.md"><img alt="Rust 1.72 or newer" src="https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&amp;logoColor=white"></a>
   <a href="docs/development.md"><img alt="Python 3.11 or newer" src="https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&amp;logoColor=white"></a>
   <a href="https://docs.astral.sh/uv/"><img alt="Managed with uv" src="https://img.shields.io/badge/managed%20with-uv-6f42c1"></a>
   <a href="./LICENSE.txt"><img alt="BSD 3-Clause license" src="https://img.shields.io/badge/license-BSD--3--Clause-blue.svg"></a>
 </p>
 
-</td>
-<td align="right" valign="middle" width="36%">
-
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/r2x-logo-white.svg">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/r2x-logo-full-color.svg">
-  <img alt="R2X framework logo" src="./assets/r2x-logo-full-color.svg" width="260">
-</picture>
-
-</td>
-</tr>
-</table>
-
-<p align="center">
-  <a href="https://github.com/NatLabRockies/r2x-cli/releases/latest"><img alt="Latest r2x-cli release" src="https://img.shields.io/github/v/release/NatLabRockies/r2x-cli?display_name=tag&amp;label=latest%20release&amp;color=0079c2&amp;logo=github"></a>
-</p>
+<br clear="left">
 
 <p align="center">
   <a href="#quickstart">Quickstart</a> ·
