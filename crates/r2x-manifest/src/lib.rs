@@ -1,18 +1,13 @@
-//! R2X Manifest Management
+//! Persistent plugin manifest for r2x-cli.
 //!
-//! This module handles all manifest types and operations for the r2x plugin system.
-//! It provides the core types for managing plugin metadata from discovery and AST analysis.
+//! The manifest records installed package metadata, plugin entry points,
+//! configuration schemas, install relationships, and runtime bindings. This
+//! crate owns the in-memory types, indexes, TOML persistence, package
+//! discovery, and synchronization operations used by plugin management.
 //!
-//! The manifest is stored in TOML format and contains comprehensive metadata about
-//! installed plugins, their configurations, and config schemas.
-//!
-//! # Version 3.0 Format
-//!
-//! The new format uses memory-efficient types:
-//! - `Arc<str>` for string interning
-//! - `SmallVec` for inline small collections
-//! - Pre-computed hashes for O(1) comparisons
-//! - Indexed lookups for O(1) package/plugin access
+//! The current representation uses `Arc<str>` for shared strings, `SmallVec`
+//! for compact collections, precomputed hashes, and indexed package and plugin
+//! lookups.
 
 pub mod errors;
 pub mod manifest;

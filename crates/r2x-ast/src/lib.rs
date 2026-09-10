@@ -1,13 +1,11 @@
-//! AST-based plugin discovery using ast-grep
+//! Static discovery of r2x plugins in Python source packages.
 //!
-//! This module provides static analysis based plugin discovery by:
-//! 1. Using ast-grep to parse Python source code without runtime (Phase 1)
-//! 2. Extracting plugin definitions from the register_plugin() function
-//! 3. Resolving class/function references to extract metadata (Phase 2)
-//! 4. Associating decorator registrations with plugins (Phase 3)
+//! The crate inspects package source and packaging metadata with AST parsing
+//! instead of importing plugin modules. It extracts entry points, plugin
+//! metadata, and configuration schemas for the r2x manifest.
 //!
-//! This approach is significantly faster than Python-based discovery and requires
-//! no Python interpreter startup.
+//! Keeping discovery separate from runtime invocation lets installation and
+//! synchronization inspect plugins without executing their import side effects.
 
 pub mod discovery_types;
 pub(crate) mod entry_points;

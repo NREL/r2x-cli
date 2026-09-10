@@ -1,6 +1,11 @@
-//! R2X library - expose modules for testing
+//! Core library for the r2x-cli command and runtime binaries.
 //!
-//! This library exposes core modules needed for testing and integration.
+//! The `r2x` command manages plugins, configuration, manifests, pipelines, and
+//! managed Python runtime setup for the r2x ecosystem. This crate exposes the
+//! shared command modules and domain operations used by both binaries and
+//! integration tests.
+//!
+//! The installed package provides the `r2x` launcher and `r2x-runtime` payload.
 
 pub mod commands;
 pub mod common;

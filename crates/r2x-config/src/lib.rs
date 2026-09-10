@@ -1,3 +1,10 @@
+//! Configuration and managed Python environment support for r2x-cli.
+//!
+//! This crate owns persisted settings and platform-specific paths for the
+//! cache, virtual environment, `uv`, Python version, and runtime logging.
+//! It also resolves Python ABI-compatible executables and site-packages paths
+//! used by plugin discovery and execution.
+
 pub mod venv_paths;
 
 use serde::{Deserialize, Serialize};

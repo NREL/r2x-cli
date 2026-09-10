@@ -1,3 +1,9 @@
+//! Shared logging and progress reporting for r2x-cli.
+//!
+//! The crate provides verbosity and quiet modes, file logging, Python and
+//! plugin output handling, sensitive-value redaction, progress indicators, and
+//! bounded log-file rotation for the workspace crates.
+
 use colored::Colorize;
 use indicatif::ProgressBar;
 use std::fs::{self, OpenOptions};
