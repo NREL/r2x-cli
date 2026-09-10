@@ -8,7 +8,7 @@
 
 <p>
   <a href="https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml"><img alt="CI" src="https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg"></a>
-  <a href="https://github.com/NatLabRockies/r2x-cli/actions/workflows/release.yml?event=push"><img alt="Release workflow" src="https://img.shields.io/github/actions/workflow/status/NatLabRockies/r2x-cli/release.yml?event=push&amp;label=release"></a>
+  <a href="https://github.com/NatLabRockies/r2x-cli/actions/workflows/release.yml"><img alt="Release workflow on main" src="https://img.shields.io/github/actions/workflow/status/NatLabRockies/r2x-cli/release.yml?branch=main&amp;label=release"></a>
   <a href="docs/development.md"><img alt="Rust 1.72 or newer" src="https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&amp;logoColor=white"></a>
   <a href="docs/development.md"><img alt="Python 3.11 or newer" src="https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&amp;logoColor=white"></a>
   <a href="https://docs.astral.sh/uv/"><img alt="Managed with uv" src="https://img.shields.io/badge/managed%20with-uv-6f42c1"></a>
