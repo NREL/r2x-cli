@@ -1,4 +1,4 @@
-# Use r2x plugin streams in Torc
+# Use r2x-cli plugin streams in Torc
 
 This how-to is for Torc users who want r2x plugins to compose as ordinary Unix commands while Torc owns job expansion, resources, and durable job dependencies.
 
@@ -25,7 +25,7 @@ r2x run r2x-plexos.plexos-exporter \
   --template PLEXOS10.0
 ```
 
-A System-producing plugin writes one JSON document to stdout. Its time-series sidecars are stored in r2x's cache-backed stream location, and the JSON embeds the absolute sidecar path. A following `r2x run` deserializes that System from stdin. Diagnostics go to stderr, and exporters are terminal sinks: they write their configured files and emit no JSON record.
+A System-producing plugin writes one JSON document to stdout. Its time-series sidecars are stored in r2x-cli's cache-backed stream location, and the JSON embeds the absolute sidecar path. A following `r2x run` deserializes that System from stdin. Diagnostics go to stderr, and exporters are terminal sinks: they write their configured files and emit no JSON record.
 
 Use `set -o pipefail` so Torc receives a failure from any command in the pipe.
 
@@ -108,7 +108,7 @@ jobs:
       - plexos_xml_{scenario}_{solve_year}_{weather_year}
 ```
 
-The `plexos_xml_*` logical file creates the generation-to-validation dependency. B and C use the same shape; they only add their variant-specific modifiers to the live pipe.
+The `plexos_xml_*` logical file creates the generation-to-validation dependency. The other variants use the same shape; they only add their variant-specific modifiers to the live pipe.
 
 ## Durable staged generation with Torc file dependencies
 
