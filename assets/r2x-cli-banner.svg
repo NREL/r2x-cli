@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 360" role="img" aria-labelledby="title description">
+  <title id="title">r2x-cli</title>
+  <desc id="description">The R2X framework command-line interface for model interoperability.</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#003a69"/>
+      <stop offset="1" stop-color="#001d35"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="1" cy="0" r="1">
+      <stop offset="0" stop-color="#0079c2" stop-opacity="0.5"/>
+      <stop offset="1" stop-color="#0079c2" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="grid" width="48" height="48" patternUnits="userSpaceOnUse">
+      <path d="M 48 0 L 0 0 0 48" fill="none" stroke="#7dd3fc" stroke-opacity="0.08"/>
+    </pattern>
+  </defs>
+
+  <rect width="1400" height="360" rx="28" fill="url(#background)"/>
+  <rect width="1400" height="360" rx="28" fill="url(#grid)"/>
+  <rect width="1400" height="360" rx="28" fill="url(#glow)"/>
+
+  <image href="r2x-logo-white.svg" x="72" y="118" width="300" height="125" preserveAspectRatio="xMidYMid meet"/>
+  <path d="M 438 72 V 288" stroke="#7dd3fc" stroke-opacity="0.32"/>
+
+  <text x="500" y="150" fill="#ffffff" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="76" font-weight="700">r2x-cli</text>
+  <text x="504" y="205" fill="#cfe8f7" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="30">Model interoperability from plugin to pipeline.</text>
+  <text x="506" y="260" fill="#7dd3fc" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-size="18" letter-spacing="3">RUST CLI  |  MANAGED PYTHON  |  DURABLE ARTIFACTS</text>
+
+  <path d="M 1120 86 C 1215 86 1282 146 1282 180 C 1282 214 1215 274 1120 274" fill="none" stroke="#0079c2" stroke-opacity="0.65" stroke-width="3"/>
+  <circle cx="1120" cy="86" r="7" fill="#7dd3fc"/>
+  <circle cx="1282" cy="180" r="7" fill="#ffffff"/>
+  <circle cx="1120" cy="274" r="7" fill="#7dd3fc"/>
+</svg>
