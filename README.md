@@ -36,8 +36,6 @@ Verify the installation:
 r2x --version
 ```
 
-For workspace setup and pipeline execution, see [Getting started](docs/getting-started.md).
-
 ## Documentation
 
 Use the guide that matches your task:
