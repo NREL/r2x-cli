@@ -8,7 +8,7 @@
 <br/>
 [![Rust 1.72+](https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&logoColor=white)](docs/development.md) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)](docs/development.md) [![Managed with uv](https://img.shields.io/badge/managed%20with-uv-6f42c1)](https://docs.astral.sh/uv/) [![BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](./LICENSE.txt)
 
-<br/>
+<br clear="left">
 
 `r2x-cli` is a Rust CLI that discovers Python plugins, composes them into
 repeatable pipelines, and manages the Python runtime with `uv`.
