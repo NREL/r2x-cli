@@ -1,9 +1,5 @@
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/r2x-logo-white.svg">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/r2x-logo-full-color.svg">
-  <img align="left" alt="R2X framework logo" src="./assets/r2x-logo-full-color.svg" width="220" height="92" hspace="10">
-</picture>
-<img align="left" alt="" width="0" height="92" hspace="10">
+<img src="./assets/r2x-logo-full-color.svg" alt="R2X framework logo" align="left" width="192px" height="80px" hspace="10"/>
+<img align="left" alt="" width="0" height="80px" hspace="10"/>
 
 #### r2x-cli
 > Plugin manager and pipeline runner for model interoperability.
