@@ -1,4 +1,4 @@
-<img src="./assets/r2x-logo-full-color.svg" alt="R2X framework logo" align="left" width="260px" hspace="10" vspace="16"/>
+<img src="./assets/r2x-logo-full-square.svg" alt="R2X framework logo" align="left" width="192px" height="192px" hspace="10"/>
 <img align="left" alt="" width="0" height="192px" hspace="10"/>
 
 #### r2x-cli
