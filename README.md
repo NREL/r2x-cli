@@ -1,13 +1,11 @@
-<img src="./assets/r2x-logo-full-color.svg" alt="R2X framework logo" align="left" width="220px" hspace="10"/>
-<img align="left" alt="" width="0" height="128px" hspace="10"/>
+<img src="./assets/r2x-logo-full-color.svg" alt="R2X framework logo" align="left" width="192px" hspace="10"/>
+<img align="left" alt="" width="0" height="192px" hspace="10"/>
 
 #### r2x-cli
 > Plugin manager and pipeline runner for model interoperability.
 >
 [![CI](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml) [![Latest release](https://img.shields.io/github/v/release/NatLabRockies/r2x-cli?display_name=tag&label=latest%20release&color=0079c2&logo=github)](https://github.com/NatLabRockies/r2x-cli/releases/latest) [![Rust 1.72+](https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&logoColor=white)](docs/development.md) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)](docs/development.md) [![BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](./LICENSE.txt)
 
-<br/>
-<br/>
 <br/>
 
 <p align="center">
