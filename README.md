@@ -5,6 +5,8 @@
 > Plugin manager and pipeline runner for model interoperability.
 >
 [![CI](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml) [![Latest release](https://img.shields.io/github/v/release/NatLabRockies/r2x-cli?display_name=tag&label=latest%20release&color=0079c2&logo=github)](https://github.com/NatLabRockies/r2x-cli/releases/latest) [![BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](./LICENSE.txt)
+<br/>
+[![Rust 1.72+](https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&logoColor=white)](docs/development.md) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)](docs/development.md) [![Managed with uv](https://img.shields.io/badge/managed%20with-uv-6f42c1)](https://docs.astral.sh/uv/)
 
 <br/>
 
