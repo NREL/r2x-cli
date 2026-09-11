@@ -36,22 +36,7 @@ Verify the installation:
 r2x --version
 ```
 
-### Run a pipeline
-
-```bash
-mkdir my-r2x-workspace
-cd my-r2x-workspace
-r2x init
-r2x install r2x-reeds
-r2x list
-r2x run pipeline.yaml --list
-r2x run pipeline.yaml <pipeline-name> --dry-run
-r2x run pipeline.yaml <pipeline-name>
-```
-
-Edit the generated `pipeline.yaml` for your input data and installed plugins.
-On the first command that needs Python, `r2x-cli` provisions a managed CPython
-runtime and virtual environment through `uv`.
+For workspace setup and pipeline execution, see [Getting started](docs/getting-started.md).
 
 ## Documentation
 
@@ -64,11 +49,6 @@ Use the guide that matches your task:
 - [Development](docs/development.md): source builds, checks, Python ABIs, and troubleshooting.
 
 See the [documentation index](docs/README.md) for the complete guide map.
-
-## Releases
-
-- [Download the latest r2x-cli release](https://github.com/NatLabRockies/r2x-cli/releases/latest).
-- [Browse all releases](https://github.com/NatLabRockies/r2x-cli/releases).
 
 ## Development
 
