@@ -1,8 +1,8 @@
-<img src="./assets/r2x-logo-full-square.svg" alt="R2X framework logo" align="left" width="192px" height="192px" hspace="10"/>
-<img align="left" alt="" width="0" height="192px" hspace="10"/>
+<img src="./assets/r2x-logo-full-square.svg" alt="R2X framework logo" align="left" width="220px" height="220px" hspace="10"/>
+<img align="left" alt="" width="0" height="220px" hspace="10"/>
 
 #### r2x-cli
-Plugin manager and pipeline runner for model interoperability.
+<p><em>Plugin manager and pipeline runner for model interoperability.</em></p>
 
 [![CI](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml) [![Latest release](https://img.shields.io/github/v/release/NatLabRockies/r2x-cli?display_name=tag&label=latest%20release&color=0079c2&logo=github)](https://github.com/NatLabRockies/r2x-cli/releases/latest) [![Last commit](https://img.shields.io/github/last-commit/NatLabRockies/r2x-cli?style=flat-square)](https://github.com/NatLabRockies/r2x-cli/commits/main) [![Docs](https://img.shields.io/badge/docs-guides-0079c2?style=flat-square)](docs/README.md)
 <br/>
