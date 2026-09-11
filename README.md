@@ -1,27 +1,23 @@
-<table border="0" cellpadding="0" cellspacing="0">
-  <tr>
-    <td width="30%" valign="middle" align="left">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="./assets/r2x-logo-white.svg">
-        <source media="(prefers-color-scheme: light)" srcset="./assets/r2x-logo-full-color.svg">
-        <img alt="R2X framework logo" src="./assets/r2x-logo-full-color.svg" width="240">
-      </picture>
-    </td>
-    <td width="70%" valign="middle">
-      <h4>r2x-cli</h4>
-      <blockquote>Plugin manager and pipeline runner for model interoperability.</blockquote>
-      <p>
-        <a href="https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml"><img alt="CI" src="https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg"></a>
-        <a href="https://github.com/NatLabRockies/r2x-cli/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/NatLabRockies/r2x-cli?display_name=tag&amp;label=latest%20release&amp;color=0079c2&amp;logo=github"></a>
-        <a href="docs/development.md"><img alt="Rust 1.72 or newer" src="https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&amp;logoColor=white"></a>
-        <a href="docs/development.md"><img alt="Python 3.11 or newer" src="https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&amp;logoColor=white"></a>
-        <a href="./LICENSE.txt"><img alt="BSD 3-Clause license" src="https://img.shields.io/badge/license-BSD--3--Clause-blue.svg"></a>
-      </p>
-    </td>
-  </tr>
-</table>
-
-<br>
+<div style="display: flex; align-items: center; gap: 24px; flex-wrap: wrap;">
+  <div style="flex: 0 0 220px;">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="./assets/r2x-logo-white.svg">
+      <source media="(prefers-color-scheme: light)" srcset="./assets/r2x-logo-full-color.svg">
+      <img alt="R2X framework logo" src="./assets/r2x-logo-full-color.svg" width="220">
+    </picture>
+  </div>
+  <div style="flex: 1 1 420px; min-width: 280px;">
+    <h4>r2x-cli</h4>
+    <blockquote>Plugin manager and pipeline runner for model interoperability.</blockquote>
+    <p>
+      <a href="https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml"><img alt="CI" src="https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg"></a>
+      <a href="https://github.com/NatLabRockies/r2x-cli/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/NatLabRockies/r2x-cli?display_name=tag&amp;label=latest%20release&amp;color=0079c2&amp;logo=github"></a>
+      <a href="docs/development.md"><img alt="Rust 1.72 or newer" src="https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&amp;logoColor=white"></a>
+      <a href="docs/development.md"><img alt="Python 3.11 or newer" src="https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&amp;logoColor=white"></a>
+      <a href="./LICENSE.txt"><img alt="BSD 3-Clause license" src="https://img.shields.io/badge/license-BSD--3--Clause-blue.svg"></a>
+    </p>
+  </div>
+</div>
 
 <p align="center">
   <a href="#quickstart">Quickstart</a> ·
