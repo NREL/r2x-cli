@@ -1,25 +1,20 @@
-<div align="center">
+<img src="./assets/r2x-logo-full-square.svg" alt="R2X framework logo" align="left" width="220px" height="220px" hspace="10"/>
+<img align="left" alt="" width="0" height="220px" hspace="10"/>
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/r2x-logo-white.svg">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/r2x-logo-full-color.svg">
-  <img alt="R2X" src="./assets/r2x-logo-full-color.svg" width="360">
-</picture>
+#### r2x-cli
+<p><small>Plugin manager and pipeline runner for model interoperability.</small></p>
 
-<p>Plugin manager and pipeline runner for model interoperability.</p>
+[![CI](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml) [![Latest release](https://img.shields.io/github/v/release/NatLabRockies/r2x-cli?display_name=tag&label=latest%20release&color=0079c2&logo=github)](https://github.com/NatLabRockies/r2x-cli/releases/latest) [![Last commit](https://img.shields.io/github/last-commit/NatLabRockies/r2x-cli?style=flat-square)](https://github.com/NatLabRockies/r2x-cli/commits/main) [![Docs](https://img.shields.io/badge/docs-guides-0079c2?style=flat-square)](docs/README.md)
+<br/>
+[![Rust 1.72+](https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&logoColor=white)](docs/development.md) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)](docs/development.md) [![Managed with uv](https://img.shields.io/badge/managed%20with-uv-6f42c1)](https://docs.astral.sh/uv/) [![BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](./LICENSE.txt)
 
-[![CI](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml)
-[![Release](https://github.com/NatLabRockies/r2x-cli/actions/workflows/release.yml/badge.svg?event=push)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/release.yml)
-[![License](https://img.shields.io/badge/license-BSD--3--Clause-blue)](./LICENSE.txt)
+<br clear="left">
 
-</div>
+`r2x-cli` is a Rust CLI that discovers Python plugins, composes them into
+repeatable pipelines, and manages the Python runtime with `uv`.
+It keeps model data and sidecar artifacts together across process boundaries.
 
-`r2x-cli` discovers Python plugins, chains them into pipelines, and manages the
-runtime needed to translate models between formats.
-The `r2x` command is written in Rust and runs plugins in a managed Python
-environment.
-
-## Quick start
+## Quick Start
 
 ### Install
 
@@ -41,64 +36,30 @@ Verify the installation:
 r2x --version
 ```
 
-### Create a workspace
-
-```bash
-mkdir my-r2x-workspace
-cd my-r2x-workspace
-r2x init
-r2x install r2x-reeds
-r2x list
-```
-
-Edit the generated `pipeline.yaml` for your input data and installed plugins,
-then validate and run a named pipeline:
-
-```bash
-r2x run pipeline.yaml --list
-r2x run pipeline.yaml <pipeline-name> --dry-run
-r2x run pipeline.yaml <pipeline-name>
-```
-
-On the first command that needs Python, `r2x-cli` uses `uv` to provision a
-managed CPython runtime and the r2x virtual environment. A system Python
-executable is not required. If `uv` is not installed, `r2x-cli` offers to
-install it with the official installer.
-
 ## Documentation
 
-The [documentation index](docs/README.md) routes readers to task-focused
-guides for r2x-cli:
+Use the guide that matches your task:
 
 - [Getting started](docs/getting-started.md): install, initialize, and run a pipeline.
-- [CLI reference](docs/cli-reference.md): common commands, shared flags, runtime commands, and system inspection.
+- [CLI reference](docs/cli-reference.md): commands, flags, runtime behavior, and help.
 - [Plugin management](docs/plugin-management.md): install, inspect, upgrade, and remove plugins.
-- [Architecture](docs/architecture.md): crates, runtime boundaries, and plugin discovery.
-- [Development](docs/development.md): source builds, tests, linting, and troubleshooting.
+- [Architecture](docs/architecture.md): Rust crates, runtime boundaries, discovery, and artifacts.
+- [Development](docs/development.md): source builds, checks, Python ABIs, and troubleshooting.
 
-## Updates
+See the [documentation index](docs/README.md) for the complete guide map.
 
-Standalone installer users can update to the latest release with:
+## Development
+
+Install Rust, `uv`, Python 3.11 or newer, and `just`.
+Run the aggregate check with:
 
 ```bash
-r2x self update
+just all
 ```
 
-Users who installed with Cargo, Homebrew, or another package manager should
-use that package manager's update command.
-
-## Model interoperability
-
-r2x-cli orchestrates independently published packages that enable model
-interoperability:
-
-- [r2x-core](https://github.com/NatLabRockies/r2x-core): shared plugin framework.
-- [R2X](https://github.com/NatLabRockies/R2X): translation plugins and model packages.
-- [r2x-reeds](https://github.com/NatLabRockies/r2x-reeds): ReEDS parsing and transforms.
-- [r2x-plexos](https://github.com/NatLabRockies/r2x-plexos): PLEXOS parsing and export.
-- [r2x-sienna](https://github.com/NatLabRockies/r2x-sienna): Sienna parsing and export.
-- [infrasys](https://github.com/NatLabRockies/infrasys): system storage and time-series management.
+See [Development](docs/development.md) for targeted formatting, lint, build, and test commands.
 
 ## License
 
-BSD-3-Clause. See [LICENSE.txt](./LICENSE.txt) for the full text.
+BSD-3-Clause.
+See [LICENSE.txt](./LICENSE.txt) for the full license text.
