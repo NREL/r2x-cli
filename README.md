@@ -4,15 +4,15 @@
 #### r2x-cli
 > Plugin manager and pipeline runner for model interoperability.
 >
-[![CI](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml) [![Latest release](https://img.shields.io/github/v/release/NatLabRockies/r2x-cli?display_name=tag&label=latest%20release&color=0079c2&logo=github)](https://github.com/NatLabRockies/r2x-cli/releases/latest) [![BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](./LICENSE.txt)
+[![CI](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml/badge.svg)](https://github.com/NatLabRockies/r2x-cli/actions/workflows/build.yml) [![Latest release](https://img.shields.io/github/v/release/NatLabRockies/r2x-cli?display_name=tag&label=latest%20release&color=0079c2&logo=github)](https://github.com/NatLabRockies/r2x-cli/releases/latest) [![Last commit](https://img.shields.io/github/last-commit/NatLabRockies/r2x-cli?style=flat-square)](https://github.com/NatLabRockies/r2x-cli/commits/main)
 <br/>
-[![Rust 1.72+](https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&logoColor=white)](docs/development.md) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)](docs/development.md) [![Managed with uv](https://img.shields.io/badge/managed%20with-uv-6f42c1)](https://docs.astral.sh/uv/)
+[![Rust 1.72+](https://img.shields.io/badge/Rust-1.72%2B-dea584?logo=rust&logoColor=white)](docs/development.md) [![Python 3.11+](https://img.shields.io/badge/Python-3.11%2B-3776ab?logo=python&logoColor=white)](docs/development.md) [![Managed with uv](https://img.shields.io/badge/managed%20with-uv-6f42c1)](https://docs.astral.sh/uv/) [![BSD 3-Clause](https://img.shields.io/badge/license-BSD--3--Clause-blue.svg)](./LICENSE.txt)
 
 <br/>
 
 <p align="center">
   <a href="#quickstart">Quickstart</a> ·
-  <a href="#what-r2x-cli-does">Capabilities</a> ·
+  <a href="#at-a-glance">Capabilities</a> ·
   <a href="#rust-workspace">Rust workspace</a> ·
   <a href="#documentation">Documentation</a> ·
   <a href="#development">Development</a>
@@ -72,7 +72,7 @@ A system Python executable is not required.
 If `uv` is not installed, r2x-cli offers to install it with the official
 installer.
 
-## What r2x-cli does
+## At a glance
 
 | Capability | What it provides |
 | --- | --- |
@@ -80,6 +80,20 @@ installer.
 | Pipeline execution | Chains plugins through named pipelines, Unix pipes, or durable JSON entrypoints. |
 | Artifact handoff | Keeps JSON entrypoints beside their time-series and other sidecar directories. |
 | Runtime management | Selects a compatible Python ABI and manages the `uv` virtual environment used by plugins. |
+
+## Typical workflow
+
+The common path is intentionally small:
+
+```text
+r2x install → r2x sync → r2x run --dry-run → r2x run
+```
+
+Installation adds a plugin package, synchronization refreshes its discovered
+metadata, dry-run validates the selected pipeline, and execution runs it in the
+managed Python environment.
+Use `-o` when the output must survive beyond the current process, and keep the
+JSON entrypoint beside its sidecar directory.
 
 ## Rust workspace
 
@@ -116,12 +130,15 @@ user and developer guides.
 ## Development
 
 Install Rust, `uv`, Python 3.11 or newer, and `just`.
-Run the full local check set with:
+The standard contributor checks are:
 
 ```bash
-just all
+just fmt
+just clippy-strict
+just test
 ```
 
+Run the aggregate check with `just all`.
 See [Development](docs/development.md) for source builds, Python ABI selection,
 targeted checks, and troubleshooting.
 
